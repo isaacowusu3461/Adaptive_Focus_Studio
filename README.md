@@ -1,12 +1,13 @@
 
 # Adaptive Focus Studio
 
-Adaptive Focus Studio is a Flutter mobile application that helps
-students organize study sessions, manage focus presets, and track
-their study progress.
+Adaptive Focus Studio is a Flutter mobile application
+designed to help students organize study sessions,
+manage focus presets, and track their study progress.
 
-This project is being developed individually for CSC 6360 -
-Mobile App Development at Georgia State University.
+This project is being developed individually for
+CSC 6360 - Mobile App Development at
+Georgia State University.
 
 ## Developer
 
@@ -14,12 +15,14 @@ Isaac Owusu
 
 ## Project Overview
 
-The application will allow users to create study presets,
-manage focus timers, review completed sessions, and receive
-study-duration recommendations.
+The application will allow students to create study
+presets, manage focus timers, review completed sessions,
+and receive study-duration recommendations.
 
-The application is designed to work offline using SQLite
-for study data and SharedPreferences for user settings.
+The application is designed to work offline.
+
+SQLite will store study presets and session records,
+while SharedPreferences will store application settings.
 
 ## Planned Features
 
@@ -39,31 +42,45 @@ for study data and SharedPreferences for user settings.
 - Riverpod
 - Material Design 3
 
+## Architecture
+
+The project follows clean architecture with three
+main layers:
+
+- Presentation: Screens, widgets, and state management
+- Domain: Entities, repository contracts, and use cases
+- Data: Local database and repository implementations
+
+See ARCHITECTURE.md for additional details.
+
 ## Current Progress
 
-Commit 1: Initial Flutter project setup.
+### Commit 1
 
-The application currently includes a welcome screen
-with a working Get Started button.
+Initialized the Flutter project, installed initial
+dependencies, created a welcome screen, and added
+widget tests.
 
-Additional features will be implemented incrementally.
+### Commit 2
+
+Introduced the clean architecture folder structure,
+separated the application theme and configuration,
+created the FocusPreset domain entity, defined the
+repository interface, and added domain unit tests.
 
 ## Running the Application
 
-1. Install Flutter and configure the development environment.
-2. Open the project directory.
-3. Install dependencies:
+Install dependencies:
 
-   flutter pub get
+    flutter pub get
 
-4. Start an Android emulator.
-5. Run the application:
+Run the application:
 
-   flutter run
+    flutter run
 
 ## Testing
 
-Run the widget tests:
+Run all tests:
 
     flutter test
 
