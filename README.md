@@ -15,19 +15,19 @@ Isaac Owusu
 
 ## Project Overview
 
-The application allows students to organize study
-activities, manage focus sessions, review study
-history, and receive study-duration recommendations.
-
 The application is designed to work offline.
 
-SQLite will store focus presets and session logs,
-while SharedPreferences will store application settings.
+Students will be able to create study presets,
+manage focus sessions, review study history,
+and receive study-duration recommendations.
+
+SQLite stores focus presets and session logs.
+SharedPreferences will store application settings.
 
 ## Planned Features
 
 - Create, view, edit, and delete focus presets
-- Start, pause, resume, finish, and reset study sessions
+- Start, pause, resume, finish, and reset sessions
 - Track completed study sessions
 - Filter presets by mood
 - View study history and statistics
@@ -41,46 +41,67 @@ while SharedPreferences will store application settings.
 - SharedPreferences
 - Riverpod
 - Material Design 3
+- sqflite_common_ffi for database testing
 
 ## Architecture
 
-The project follows clean architecture with three
-main layers:
+The project follows clean architecture with
+three main layers:
 
-- Presentation: Screens, widgets, and state management
+- Presentation: Screens, widgets, and state
 - Domain: Entities, repository contracts, and use cases
-- Data: Database and repository implementations
+- Data: Database models and storage implementations
 
-See ARCHITECTURE.md for details.
+See ARCHITECTURE.md for additional details.
+
+## Local Database
+
+The SQLite database is named:
+
+adaptive_focus_studio.db
+
+It contains two tables:
+
+### focus_presets
+
+Stores study preset information:
+- ID
+- Name
+- Mood tag
+- Planned duration in minutes
+
+### session_logs
+
+Stores study session records:
+- ID
+- Related preset ID
+- Date
+- Completed duration in seconds
+- Status
+- Notes
+
+The tables are connected through a foreign key.
+
+Deleting a preset also deletes its related
+session logs.
 
 ## Current Progress
 
 ### Commit 1
-
-Initialized the Flutter project, installed initial
-dependencies, created a welcome screen, and added
-widget tests.
+Initialized the Flutter project and welcome screen.
 
 ### Commit 2
-
-Introduced clean architecture, separated application
-configuration and theme, created the FocusPreset
-domain entity and repository interface, and added
-domain unit tests.
+Introduced clean architecture and domain components.
 
 ### Commit 3
+Created the five main screens and navigation.
 
-Created the five main application screens and added
-navigation between Dashboard, History, and Settings.
+### Commit 4
+Implemented the SQLite database schema,
+data models, and database tests.
 
-The Dashboard includes placeholder study summaries,
-a sample preset, and a Session Scout section.
-
-The preset form includes basic validation.
-
-The Focus Timer, History, and Settings screens contain
-initial interfaces. Data persistence and timer logic
-will be implemented in future commits.
+The database is not yet connected to the
+application screens.
 
 ## Running the Application
 
@@ -97,6 +118,10 @@ Run the application:
 Run all tests:
 
     flutter test
+
+Run database tests only:
+
+    flutter test test/features/focus/data/database_helper_test.dart
 
 Check for code issues:
 
