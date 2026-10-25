@@ -2,8 +2,8 @@
 # Adaptive Focus Studio
 
 Adaptive Focus Studio is a Flutter mobile application
-designed to help students organize study sessions,
-manage focus presets, and track their study progress.
+that helps students organize study sessions, manage
+focus presets, and track their study progress.
 
 This project is being developed individually for
 CSC 6360 - Mobile App Development at
@@ -15,19 +15,19 @@ Isaac Owusu
 
 ## Project Overview
 
-The application will allow students to create study
-presets, manage focus timers, review completed sessions,
-and receive study-duration recommendations.
+The application allows students to organize study
+activities, manage focus sessions, review study
+history, and receive study-duration recommendations.
 
 The application is designed to work offline.
 
-SQLite will store study presets and session records,
+SQLite will store focus presets and session logs,
 while SharedPreferences will store application settings.
 
 ## Planned Features
 
-- Create, view, edit, and delete study presets
-- Start, pause, resume, finish, and reset focus sessions
+- Create, view, edit, and delete focus presets
+- Start, pause, resume, finish, and reset study sessions
 - Track completed study sessions
 - Filter presets by mood
 - View study history and statistics
@@ -49,9 +49,9 @@ main layers:
 
 - Presentation: Screens, widgets, and state management
 - Domain: Entities, repository contracts, and use cases
-- Data: Local database and repository implementations
+- Data: Database and repository implementations
 
-See ARCHITECTURE.md for additional details.
+See ARCHITECTURE.md for details.
 
 ## Current Progress
 
@@ -63,10 +63,24 @@ widget tests.
 
 ### Commit 2
 
-Introduced the clean architecture folder structure,
-separated the application theme and configuration,
-created the FocusPreset domain entity, defined the
-repository interface, and added domain unit tests.
+Introduced clean architecture, separated application
+configuration and theme, created the FocusPreset
+domain entity and repository interface, and added
+domain unit tests.
+
+### Commit 3
+
+Created the five main application screens and added
+navigation between Dashboard, History, and Settings.
+
+The Dashboard includes placeholder study summaries,
+a sample preset, and a Session Scout section.
+
+The preset form includes basic validation.
+
+The Focus Timer, History, and Settings screens contain
+initial interfaces. Data persistence and timer logic
+will be implemented in future commits.
 
 ## Running the Application
 
