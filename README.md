@@ -89,6 +89,32 @@ Applying a recommendation updates the selected
 preset in SQLite. Future sessions using that
 preset use the new duration.
 
+### Session Scout Evaluation
+
+The evaluation feature compares Session Scout
+against a fixed 25-minute baseline.
+
+Both methods predict the duration of a
+subsequent study session.
+
+The evaluation calculates absolute prediction
+errors and mean absolute error (MAE).
+
+Six synthetic test cases demonstrate the
+evaluation, including a no-history fallback case.
+
+Results on the synthetic examples:
+
+- Session Scout MAE: 2.33 minutes
+- Fixed baseline MAE: 13.00 minutes
+- Relative MAE reduction: approximately 82.05%
+
+These results demonstrate the evaluation method.
+They are not evidence of real-world superiority.
+
+See AI_FEATURE.md for the methodology, results,
+limitations, and possible improvements.
+
 ## Architecture
 
 The application follows clean architecture:
@@ -144,9 +170,13 @@ Run Session Scout algorithm tests:
 
     flutter test test/features/focus/domain/calculate_session_scout_test.dart
 
-Run Session Scout integration tests:
+Run Session Scout repository tests:
 
     flutter test test/features/focus/domain/get_session_scout_recommendation_test.dart
+
+Run Session Scout evaluation tests:
+
+    flutter test test/features/focus/domain/evaluate_session_scout_test.dart
 
 ## Development Progress
 
@@ -167,9 +197,13 @@ Session Scout Dashboard interface,
 mood selection, recommendation display,
 and Apply/Not now actions.
 
+Commit 12:
+Session Scout evaluation against the fixed
+25-minute baseline, evaluation tests,
+and AI_FEATURE.md documentation.
+
 ## Planned Features
 
-- Session Scout evaluation against a fixed baseline
 - Riverpod state management
 - Animations and responsive layouts
 - Dart isolate for statistics

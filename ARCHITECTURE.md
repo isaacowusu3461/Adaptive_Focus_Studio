@@ -67,6 +67,9 @@ without changing any saved data.
 - FocusPreset
 - SessionLog
 - SessionScoutRecommendation
+- SessionScoutEvaluationCase
+- SessionScoutCaseResult
+- SessionScoutEvaluationResult
 
 ### Repository Interfaces
 
@@ -81,6 +84,13 @@ without changing any saved data.
 - SaveSessionLog
 - CalculateSessionScout
 - GetSessionScoutRecommendation
+- EvaluateSessionScout
+
+EvaluateSessionScout reuses the existing
+CalculateSessionScout algorithm.
+
+It does not implement a separate
+recommendation formula.
 
 ## Data Layer
 
@@ -200,24 +210,6 @@ SharedPreferences stores:
 If fewer than three completed sessions match,
 return 25 minutes.
 
-### Example
-
-Completed durations:
-- 20 minutes
-- 30 minutes
-- 25 minutes
-
-Sorted:
-- 20 minutes
-- 25 minutes
-- 30 minutes
-
-Median:
-25 minutes
-
-Suggested duration:
-25 minutes
-
 ### Applying a Recommendation
 
 1. User selects a mood.
@@ -243,9 +235,109 @@ currently linked preset.
 Editing a preset's mood can therefore change
 how historical sessions are grouped.
 
+## Session Scout Evaluation
+
+### Purpose
+
+Evaluate the predictive accuracy of Session Scout
+against a fixed 25-minute baseline.
+
+### Evaluation Inputs
+
+Each evaluation case contains:
+
+- Case name
+- Mood tag
+- Historical completed durations in seconds
+- Actual subsequent duration in minutes
+
+The target duration is separate from the
+historical input durations.
+
+### Evaluation Process
+
+1. Read an evaluation case.
+2. Generate a recommendation using
+   CalculateSessionScout.
+3. Generate the fixed 25-minute baseline.
+4. Compare both predictions against the target.
+5. Calculate absolute prediction errors.
+6. Repeat for all cases.
+7. Calculate mean absolute error for each method.
+8. Compare the resulting MAE values.
+
+### Metrics
+
+Absolute Error:
+
+|Prediction - Actual|
+
+Mean Absolute Error:
+
+Sum of Absolute Errors / Number of Cases
+
+Relative MAE Reduction:
+
+(Baseline MAE - Scout MAE) / Baseline MAE * 100
+
+If baseline MAE is zero, the implementation
+returns zero for the percentage metric
+to avoid division by zero.
+
+### Sample Evaluation
+
+Six synthetic cases are used.
+
+Scout absolute errors:
+
+3, 3, 2, 3, 3, 0
+
+Baseline absolute errors:
+
+3, 13, 22, 7, 33, 0
+
+Scout MAE:
+
+14 / 6 = 2.33 minutes
+
+Baseline MAE:
+
+78 / 6 = 13.00 minutes
+
+Relative MAE reduction:
+
+Approximately 82.05%
+
+### Interpretation
+
+Session Scout performs better on the
+constructed synthetic examples.
+
+The sample data is not representative
+evidence of real-world predictive performance.
+
+Further evaluation should use actual
+chronologically held-out study sessions.
+
+### Implementation
+
+Entities:
+- SessionScoutEvaluationCase
+- SessionScoutCaseResult
+- SessionScoutEvaluationResult
+
+Use case:
+- EvaluateSessionScout
+
+Tests:
+- evaluate_session_scout_test.dart
+
+Documentation:
+- AI_FEATURE.md
+
 ## Testing
 
-### Unit Tests
+### Recommendation Unit Tests
 
 - Median calculation
 - Fallback behavior
@@ -269,6 +361,18 @@ how historical sessions are grouped.
 - Apply action
 - Missing matching preset message
 
+### Evaluation Tests
+
+- Six synthetic evaluation cases
+- Scout predictions
+- Fixed baseline predictions
+- Absolute errors
+- Mean absolute errors
+- Relative improvement
+- Better-method comparison
+- Fallback usage
+- Invalid inputs
+
 ## Development Progress
 
 Commits 1-8:
@@ -285,9 +389,12 @@ Session Scout algorithm.
 Commit 11:
 Session Scout Dashboard integration.
 
+Commit 12:
+Session Scout baseline evaluation,
+automated tests, and AI_FEATURE.md.
+
 ## Planned Improvements
 
-- Session Scout baseline evaluation
 - Riverpod state management
 - Animations and responsive layouts
 - Dart isolate statistics
