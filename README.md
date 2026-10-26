@@ -52,7 +52,7 @@ three main layers:
 - Domain: Entities, repository contracts, and use cases
 - Data: Database models and storage implementations
 
-See ARCHITECTURE.md for additional details.
+See ARCHITECTURE.md for more details.
 
 ## Local Database
 
@@ -60,11 +60,11 @@ The SQLite database is named:
 
 adaptive_focus_studio.db
 
-It contains two tables:
+It contains two related tables:
 
 ### focus_presets
 
-Stores study preset information:
+Stores:
 - ID
 - Name
 - Mood tag
@@ -72,7 +72,7 @@ Stores study preset information:
 
 ### session_logs
 
-Stores study session records:
+Stores:
 - ID
 - Related preset ID
 - Date
@@ -80,10 +80,23 @@ Stores study session records:
 - Status
 - Notes
 
-The tables are connected through a foreign key.
-
 Deleting a preset also deletes its related
 session logs.
+
+## Repository Operations
+
+The FocusPresetRepositoryImpl class provides
+SQLite CRUD operations for focus presets.
+
+Supported operations:
+- Create a preset
+- Retrieve all presets
+- Retrieve a preset by ID
+- Update a preset
+- Delete a preset
+
+The CreateFocusPreset use case validates
+and normalizes input before saving.
 
 ## Current Progress
 
@@ -97,10 +110,14 @@ Introduced clean architecture and domain components.
 Created the five main screens and navigation.
 
 ### Commit 4
-Implemented the SQLite database schema,
+Implemented SQLite database schema,
 data models, and database tests.
 
-The database is not yet connected to the
+### Commit 5
+Implemented focus preset repository CRUD
+operations and the CreateFocusPreset use case.
+
+The repository is not yet connected to the
 application screens.
 
 ## Running the Application
@@ -119,9 +136,13 @@ Run all tests:
 
     flutter test
 
-Run database tests only:
+Run repository tests:
 
-    flutter test test/features/focus/data/database_helper_test.dart
+    flutter test test/features/focus/data/focus_preset_repository_test.dart
+
+Run use case tests:
+
+    flutter test test/features/focus/domain/create_focus_preset_test.dart
 
 Check for code issues:
 

@@ -7,16 +7,15 @@ Adaptive Focus Studio follows clean architecture to
 separate the user interface, business logic, and
 data storage.
 
-I chose this approach to keep the application
-organized and make individual components easier
-to test and maintain.
+I chose this approach to make the application easier
+to maintain, test, and extend.
 
 ## Architecture Layers
 
 ### Presentation Layer
 
-The presentation layer contains screens, widgets,
-and application state.
+The presentation layer contains the application's
+screens, widgets, and state management.
 
 Responsibilities:
 - Display information
@@ -30,48 +29,68 @@ The five main screens were introduced in Commit 3.
 ### Domain Layer
 
 The domain layer contains business entities,
-repository interfaces, and application rules.
+repository interfaces, and use cases.
 
 Current entities:
 - FocusPreset
 - SessionLog
 
-The FocusPreset entity stores the preset ID, name,
-mood tag, and planned duration.
+The FocusPresetRepository interface defines:
+- getAllPresets
+- getPresetById
+- createPreset
+- updatePreset
+- deletePreset
 
-The SessionLog entity stores the session ID,
-related preset ID, date, completed duration,
-status, and notes.
+The CreateFocusPreset use case validates and
+normalizes user input before saving a preset.
 
-Repository interfaces define the operations
-available to the application without depending
-on SQLite.
+The domain layer does not depend on SQLite
+or Flutter UI components.
 
 ### Data Layer
 
-The data layer handles local storage and data
-conversion.
+The data layer contains database models,
+data sources, and repository implementations.
 
 Current components:
 - FocusPresetModel
 - SessionLogModel
 - DatabaseHelper
+- FocusPresetRepositoryImpl
 
-The models convert domain objects into database
-maps and convert database rows back into objects.
+FocusPresetRepositoryImpl implements the
+FocusPresetRepository interface using SQLite.
 
-DatabaseHelper initializes the SQLite database
-and creates the required tables.
+It converts database rows into domain objects
+and provides CRUD operations.
 
 ## Dependency Direction
 
 Presentation -> Domain <- Data
 
-The domain layer remains independent of Flutter
-UI components and SQLite implementations.
+The presentation layer depends on domain logic.
 
-The data layer depends on domain entities and
-repository interfaces.
+The data layer implements repository interfaces
+defined in the domain layer.
+
+The domain layer remains independent of the
+presentation and data layers.
+
+## Dependency Injection
+
+The repository receives DatabaseHelper through
+its constructor.
+
+The CreateFocusPreset use case receives a
+FocusPresetRepository through its constructor.
+
+This makes the components easier to replace
+and test independently.
+
+Riverpod will be introduced later for
+application-wide dependency injection
+and state management.
 
 ## SQLite Database
 
@@ -91,7 +110,7 @@ Columns:
 - mood_tag: TEXT NOT NULL
 - duration_minutes: INTEGER NOT NULL
 
-The duration must be greater than zero.
+The planned duration must be greater than zero.
 
 ### session_logs
 
@@ -107,29 +126,56 @@ The completed duration cannot be negative.
 
 Each session log references a focus preset.
 
-The database uses ON DELETE CASCADE so deleting
-a preset automatically deletes its related logs.
+Deleting a preset automatically deletes its
+related session logs through ON DELETE CASCADE.
 
 Foreign-key enforcement is enabled when the
 database connection opens.
 
-## State Management
+## Repository Operations
 
-Riverpod will be used for application state
-management and dependency injection.
+The FocusPresetRepositoryImpl class provides:
 
-## Database Testing
+### Create
+Validates the preset and inserts it into SQLite.
+Returns the generated record ID.
 
-The database tests use sqflite_common_ffi
-with an in-memory SQLite database.
+### Read
+Retrieves one preset by ID or all presets
+in newest-first order.
 
-Tests verify:
-- Database table creation
-- Preset insertion and retrieval
-- Session log insertion
+### Update
+Updates the name, mood, and duration of an
+existing preset.
+
+### Delete
+Deletes a preset by ID.
+
+Related session logs are deleted automatically
+through the database foreign-key relationship.
+
+## Testing
+
+### Unit Tests
+
+Domain tests verify:
+- FocusPreset entity behavior
+- CreateFocusPreset validation
+- Input normalization
+- Repository communication
+
+### Database Tests
+
+SQLite tests verify:
+- Table creation
+- Model conversion
+- CRUD operations
 - Foreign-key relationships
 - Cascade deletion
-- Invalid duration handling
+- Invalid input handling
+
+Database tests use sqflite_common_ffi with
+an in-memory SQLite database.
 
 ## Current Implementation
 
@@ -137,24 +183,28 @@ Tests verify:
 Flutter project initialization and welcome screen.
 
 ### Commit 2
-Clean architecture structure, theme, domain entity,
-repository interface, and unit tests.
+Clean architecture structure, shared theme,
+domain entity, repository interface, and tests.
 
 ### Commit 3
-Five main screens and application navigation.
+Five main screens and navigation.
 
 ### Commit 4
-SQLite database schema, data models, and
-database tests.
+SQLite database schema, data models, and tests.
+
+### Commit 5
+FocusPresetRepository implementation,
+CRUD operations, CreateFocusPreset use case,
+and repository tests.
 
 ## Future Improvements
 
-- Repository implementations
-- Database CRUD operations through repositories
-- Riverpod state management
-- Focus timer logic
-- Session Scout recommendations
-- Background statistics processing
-- Local notifications
-- JSON file operations
-- Integration testing
+- Connect repository operations to the UI
+- Add Riverpod state management
+- Implement focus timer logic
+- Implement session log repository
+- Add Session Scout recommendations
+- Add background statistics processing
+- Implement local notifications
+- Add JSON file operations
+- Complete integration testing
