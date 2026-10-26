@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/focus_preset.dart';
 import '../../domain/entities/session_log.dart';
+import '../../domain/entities/session_scout_recommendation.dart';
 import '../providers/focus_dependencies.dart';
 import 'focus_timer_screen.dart';
 import 'preset_form_screen.dart';
@@ -25,10 +26,21 @@ class DashboardScreenState extends State<DashboardScreen> {
   late Future<List<SessionLog>> _sessionsFuture;
 
   String _selectedMood = 'All';
-  bool _isDeleting = false;
+  String _scoutMood = 'Focused';
 
-  static const _moods = [
+  bool _isDeleting = false;
+  bool _isLoadingRecommendation = false;
+
+  SessionScoutRecommendation? _recommendation;
+
+  static const List<String> _moods = [
     'All',
+    'Focused',
+    'Relaxed',
+    'Motivated',
+  ];
+
+  static const List<String> _scoutMoods = [
     'Focused',
     'Relaxed',
     'Motivated',
@@ -49,7 +61,10 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   void reload() {
-    setState(_loadData);
+    setState(() {
+      _loadData();
+      _recommendation = null;
+    });
   }
 
   Future<void> _openPresetForm({FocusPreset? preset}) async {
@@ -151,6 +166,133 @@ class DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() => _isDeleting = false);
       }
+    }
+  }
+
+  Future<void> _getRecommendation() async {
+    if (_isLoadingRecommendation) return;
+
+    setState(() {
+      _isLoadingRecommendation = true;
+      _recommendation = null;
+    });
+
+    try {
+      final result = await widget.dependencies
+          .getSessionScoutRecommendation(
+        moodTag: _scoutMood,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _recommendation = result;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unable to generate a recommendation.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingRecommendation = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _applyRecommendation() async {
+    final recommendation = _recommendation;
+
+    if (recommendation == null) return;
+
+    try {
+      final presets =
+          await widget.dependencies.presetRepository.getAllPresets();
+
+      if (!mounted) return;
+
+      final matchingPresets = presets
+          .where((preset) =>
+              preset.moodTag == recommendation.moodTag)
+          .toList();
+
+      if (matchingPresets.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Create a ${recommendation.moodTag} preset '
+              'before applying this recommendation.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final selectedPreset = await showDialog<FocusPreset>(
+        context: context,
+        builder: (dialogContext) => SimpleDialog(
+          title: const Text('Apply to Focus Preset'),
+          children: matchingPresets.map((preset) {
+            return SimpleDialogOption(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, preset),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                ),
+                child: Text(
+                  '${preset.name} '
+                  '(${preset.durationMinutes} min)',
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      );
+
+      if (selectedPreset == null || !mounted) return;
+
+      final updatedRows =
+          await widget.dependencies.updateFocusPreset(
+        id: selectedPreset.id!,
+        name: selectedPreset.name,
+        moodTag: selectedPreset.moodTag,
+        durationMinutes: recommendation.suggestedMinutes,
+      );
+
+      if (!mounted) return;
+
+      if (updatedRows == 0) {
+        throw StateError('Preset not found.');
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${selectedPreset.name} updated to '
+            '${recommendation.suggestedMinutes} minutes.',
+          ),
+        ),
+      );
+
+      reload();
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unable to apply recommendation.',
+          ),
+        ),
+      );
     }
   }
 
@@ -289,6 +431,109 @@ class DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildSessionScout() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Get a study duration recommendation '
+              'based on your recent sessions.',
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('scout_mood'),
+              initialValue: _scoutMood,
+              decoration: const InputDecoration(
+                labelText: 'Select Mood',
+                border: OutlineInputBorder(),
+              ),
+              items: _scoutMoods.map((mood) {
+                return DropdownMenuItem(
+                  value: mood,
+                  child: Text(mood),
+                );
+              }).toList(),
+              onChanged: _isLoadingRecommendation
+                  ? null
+                  : (value) {
+                      if (value != null) {
+                        setState(() {
+                          _scoutMood = value;
+                          _recommendation = null;
+                        });
+                      }
+                    },
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _isLoadingRecommendation
+                  ? null
+                  : _getRecommendation,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Get Recommendation'),
+            ),
+            if (_isLoadingRecommendation) ...[
+              const SizedBox(height: 16),
+              const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ],
+            if (_recommendation != null) ...[
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 12),
+              Text(
+                'Suggested Duration: '
+                '${_recommendation!.suggestedMinutes} minutes',
+                key: const ValueKey('scout_result'),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(_recommendation!.explanation),
+              const SizedBox(height: 12),
+              Text(
+                'Sessions Used: '
+                '${_recommendation!.sessionsUsed}',
+              ),
+              if (_recommendation!.usedFallback)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Using the standard duration until '
+                    'more study history is available.',
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                children: [
+                  ElevatedButton(
+                    onPressed: _applyRecommendation,
+                    child: const Text('Apply'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () {
+                      setState(() {
+                        _recommendation = null;
+                      });
+                    },
+                    child: const Text('Not now'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -397,47 +642,7 @@ class DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Suggested Duration: 25 minutes',
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Personalized study recommendations '
-                    'will be available soon.',
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Session Scout coming soon!',
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text('Apply'),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton(
-                        onPressed: () {},
-                        child: const Text('Not now'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildSessionScout(),
         ],
       ),
     );

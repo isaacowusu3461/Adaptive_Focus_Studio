@@ -2,9 +2,8 @@
 # Adaptive Focus Studio
 
 Adaptive Focus Studio is a Flutter mobile application
-that helps students organize focus sessions, track
-study progress, and receive personalized study
-duration recommendations.
+for organizing focus sessions, tracking study progress,
+and recommending personalized study durations.
 
 Developed for CSC 6360 - Mobile App Development
 at Georgia State University.
@@ -22,7 +21,7 @@ Isaac Owusu
 - intl
 - sqflite_common_ffi for database tests
 
-## Implemented Features
+## Features
 
 ### Focus Presets
 
@@ -30,7 +29,7 @@ Isaac Owusu
 - Edit saved presets
 - Delete presets with confirmation
 - Filter presets by mood
-- Save presets locally using SQLite
+- Store presets in SQLite
 
 Supported moods:
 - Focused
@@ -43,12 +42,12 @@ Supported moods:
 - Pause and resume
 - Finish early
 - Reset the timer
-- Automatically record completed sessions
-- Record partial sessions
+- Automatically save completed sessions
+- Save partial sessions
 
 ### History & Insights
 
-- View saved study sessions
+- View saved sessions
 - Add manual session logs
 - Edit session logs
 - Delete session logs
@@ -62,48 +61,43 @@ Supported moods:
 - Reminder preference
 - Reduced-motion preference
 - Sound preference
-- Persistent settings using SharedPreferences
+- Persistent storage using SharedPreferences
 
-### Session Scout Algorithm
+### Session Scout
 
-Session Scout calculates a suggested study duration
-using previously completed study sessions.
+Session Scout recommends study durations based on
+previously completed sessions for a selected mood.
 
-Algorithm:
+How it works:
 
-1. Retrieve saved focus presets and session logs.
-2. Find presets matching the requested mood.
-3. Select completed sessions linked to those presets.
-4. Sort matching sessions from newest to oldest.
-5. Select the three most recent completed sessions.
-6. Calculate their median completed duration.
-7. Round the median to the nearest whole minute.
-8. Clamp the recommendation between 10 and 60 minutes.
-9. Return a recommendation with an explanation.
+1. Select a mood on the Dashboard.
+2. Tap Get Recommendation.
+3. Session Scout finds the three most recent
+   completed sessions for that mood.
+4. It calculates their median completed duration.
+5. The recommendation is rounded to the nearest
+   minute and limited to 10-60 minutes.
+6. The suggested duration and explanation appear.
+7. Tap Apply to update a matching focus preset.
+8. Tap Not now to dismiss the recommendation.
 
-If fewer than three completed sessions match the
-requested mood, Session Scout recommends 25 minutes.
+If fewer than three completed sessions match
+the selected mood, Session Scout recommends
+the standard 25-minute duration.
 
-Session Scout also returns:
-- The requested mood
-- The number of sessions used
-- Whether the fallback was used
-- An explanation of the recommendation
-
-The algorithm is implemented in the domain layer.
-
-The interactive Dashboard integration is planned
-for Commit 11.
+Applying a recommendation updates the selected
+preset in SQLite. Future sessions using that
+preset use the new duration.
 
 ## Architecture
 
-The project follows clean architecture:
+The application follows clean architecture:
 
 - Presentation: Flutter screens and UI state
-- Domain: Entities, repository interfaces, and use cases
-- Data: SQLite models and repository implementations
+- Domain: Entities, repository interfaces, use cases
+- Data: SQLite models and repositories
 
-See ARCHITECTURE.md for additional details.
+See ARCHITECTURE.md for details.
 
 ## Database
 
@@ -115,9 +109,8 @@ Tables:
 - focus_presets
 - session_logs
 
-Deleting a focus preset also deletes its related
-session logs through SQLite foreign-key cascade
-deletion.
+Deleting a preset also deletes its related
+session logs through foreign-key cascade deletion.
 
 ## Running the Application
 
@@ -125,17 +118,17 @@ Install dependencies:
 
     flutter pub get
 
-Run the application:
+Run:
 
     flutter run
 
 ## Testing
 
-Format Dart code:
+Format:
 
     dart format lib test
 
-Run static analysis:
+Analyze:
 
     flutter analyze
 
@@ -143,38 +136,43 @@ Run all tests:
 
     flutter test
 
-Run Session Scout calculation tests:
+Run widget tests:
+
+    flutter test test/widget_test.dart
+
+Run Session Scout algorithm tests:
 
     flutter test test/features/focus/domain/calculate_session_scout_test.dart
 
-Run Session Scout repository integration tests:
+Run Session Scout integration tests:
 
     flutter test test/features/focus/domain/get_session_scout_recommendation_test.dart
 
 ## Development Progress
 
-### Commits 1-8
+Commits 1-8:
+Project setup, clean architecture, SQLite,
+and focus preset management.
 
-Project initialization, clean architecture,
-navigation, SQLite, and preset management.
-
-### Commit 9
-
-Combined timer, session history, statistics,
+Commit 9:
+Focus timer, session history, statistics,
 and persistent settings.
 
-### Commit 10
+Commit 10:
+Session Scout recommendation algorithm
+and automated tests.
 
-Implemented the Session Scout recommendation
-algorithm, repository integration, and tests.
+Commit 11:
+Session Scout Dashboard interface,
+mood selection, recommendation display,
+and Apply/Not now actions.
 
 ## Planned Features
 
-- Session Scout Dashboard interface
 - Session Scout evaluation against a fixed baseline
 - Riverpod state management
 - Animations and responsive layouts
-- Background statistics processing using isolates
+- Dart isolate for statistics
 - Local notifications
 - JSON export and import
 - Additional unit and widget tests
