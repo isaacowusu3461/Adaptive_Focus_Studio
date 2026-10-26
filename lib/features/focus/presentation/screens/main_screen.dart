@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../providers/focus_dependencies.dart';
@@ -9,10 +8,7 @@ import 'settings_screen.dart';
 class MainScreen extends StatefulWidget {
   final FocusDependencies dependencies;
 
-  const MainScreen({
-    super.key,
-    required this.dependencies,
-  });
+  const MainScreen({super.key, required this.dependencies});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -21,6 +17,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
+  final GlobalKey<DashboardScreenState> _dashboardKey =
+      GlobalKey<DashboardScreenState>();
+
+  final GlobalKey<HistoryScreenState> _historyKey =
+      GlobalKey<HistoryScreenState>();
+
   late final List<Widget> _screens;
 
   @override
@@ -28,10 +30,8 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
 
     _screens = [
-      DashboardScreen(
-        dependencies: widget.dependencies,
-      ),
-      const HistoryScreen(),
+      DashboardScreen(key: _dashboardKey, dependencies: widget.dependencies),
+      HistoryScreen(key: _historyKey, dependencies: widget.dependencies),
       const SettingsScreen(),
     ];
   }
@@ -40,15 +40,20 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _selectedIndex = index;
     });
+
+    if (index == 0) {
+      _dashboardKey.currentState?.reload();
+    }
+
+    if (index == 1) {
+      _historyKey.currentState?.reload();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onItemTapped,

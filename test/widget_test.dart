@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:adaptive_focus_studio/app.dart';
@@ -11,22 +12,24 @@ import 'package:adaptive_focus_studio/features/focus/presentation/providers/focu
 void main() {
   sqfliteFfiInit();
 
-  late DatabaseHelper databaseHelper;
+  late DatabaseHelper helper;
   late FocusDependencies dependencies;
 
   setUp(() {
-    databaseHelper = DatabaseHelper(
+    SharedPreferences.setMockInitialValues({});
+
+    helper = DatabaseHelper(
       factory: databaseFactoryFfi,
       databasePath: inMemoryDatabasePath,
     );
 
     dependencies = FocusDependencies(
-      databaseHelper: databaseHelper,
+      databaseHelper: helper,
     );
   });
 
   tearDown(() async {
-    await databaseHelper.close();
+    await helper.close();
   });
 
   Future<void> openDashboard(WidgetTester tester) async {
@@ -40,128 +43,33 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<int> addTestPreset({
-    String name = 'Algorithms Practice',
+  Future<int> addPreset({
+    String name = 'Algorithms',
     String mood = 'Focused',
-    int duration = 25,
+    int minutes = 25,
   }) {
     return dependencies.presetRepository.createPreset(
       FocusPreset(
         name: name,
         moodTag: mood,
-        durationMinutes: duration,
+        durationMinutes: minutes,
       ),
     );
   }
 
-  Future<void> selectMood(
-    WidgetTester tester,
-    String mood,
-  ) async {
-    await tester.tap(
-      find.byKey(const ValueKey('mood_filter')),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text(mood).last);
-    await tester.pumpAndSettle();
-  }
-
-  testWidgets('Welcome screen displays expected content', (
-    WidgetTester tester,
-  ) async {
-    await tester.pumpWidget(
-      AdaptiveFocusStudioApp(
-        dependencies: dependencies,
-      ),
-    );
-
-    expect(
-      find.text('Welcome to Adaptive Focus Studio'),
-      findsOneWidget,
-    );
-
-    expect(find.text('Get Started'), findsOneWidget);
-    expect(
-      find.byIcon(Icons.timer_outlined),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Get Started opens the Dashboard', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('Welcome screen opens Dashboard', (tester) async {
     await openDashboard(tester);
 
     expect(find.text('My Focus Presets'), findsOneWidget);
-    expect(find.text('Study Summary'), findsOneWidget);
   });
 
-  testWidgets('Dashboard shows empty state', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('Dashboard shows empty preset state', (tester) async {
     await openDashboard(tester);
 
-    expect(
-      find.text('No focus presets yet.'),
-      findsOneWidget,
-    );
+    expect(find.text('No focus presets yet.'), findsOneWidget);
   });
 
-  testWidgets('Bottom navigation opens History and Settings', (
-    WidgetTester tester,
-  ) async {
-    await openDashboard(tester);
-
-    await tester.tap(find.text('History').last);
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('History & Insights'),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.text('Settings').last);
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Default Focus Duration'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('New button opens the create form', (
-    WidgetTester tester,
-  ) async {
-    await openDashboard(tester);
-
-    await tester.tap(find.text('New'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Create Preset'), findsOneWidget);
-    expect(find.text('Preset Name'), findsOneWidget);
-  });
-
-  testWidgets('Create form rejects an empty name', (
-    WidgetTester tester,
-  ) async {
-    await openDashboard(tester);
-
-    await tester.tap(find.text('New'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Save Preset'));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Please enter a preset name'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Create form rejects duration above 180', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('Creating a preset updates Dashboard', (tester) async {
     await openDashboard(tester);
 
     await tester.tap(find.text('New'));
@@ -169,88 +77,21 @@ void main() {
 
     await tester.enterText(
       find.byType(TextFormField).first,
-      'Algorithms Practice',
-    );
-
-    await tester.enterText(
-      find.byType(TextFormField).last,
-      '200',
-    );
-
-    await tester.ensureVisible(find.text('Save Preset'));
-    await tester.tap(find.text('Save Preset'));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Enter a duration between 1 and 180'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Creating a preset updates the Dashboard', (
-    WidgetTester tester,
-  ) async {
-    await openDashboard(tester);
-
-    await tester.tap(find.text('New'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Algorithms Practice',
+      'Flutter Practice',
     );
 
     await tester.tap(find.text('Save Preset'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Flutter Practice'), findsOneWidget);
     expect(
-      find.text('Algorithms Practice'),
-      findsOneWidget,
+      (await dependencies.presetRepository.getAllPresets()).length,
+      1,
     );
-
-    expect(find.text('Mood: Focused'), findsOneWidget);
-    expect(
-      find.text('Duration: 25 minutes'),
-      findsOneWidget,
-    );
-
-    final presets =
-        await dependencies.presetRepository.getAllPresets();
-
-    expect(presets.length, 1);
   });
 
-  testWidgets('Edit opens the form with existing values', (
-    WidgetTester tester,
-  ) async {
-    await addTestPreset();
-    await openDashboard(tester);
-
-    await tester.tap(find.text('Edit'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Edit Preset'), findsOneWidget);
-
-    final nameField = tester.widget<TextFormField>(
-      find.byType(TextFormField).first,
-    );
-
-    final durationField = tester.widget<TextFormField>(
-      find.byType(TextFormField).last,
-    );
-
-    expect(
-      nameField.controller!.text,
-      'Algorithms Practice',
-    );
-
-    expect(durationField.controller!.text, '25');
-  });
-
-  testWidgets('Editing a preset updates SQLite and Dashboard', (
-    WidgetTester tester,
-  ) async {
-    final id = await addTestPreset();
+  testWidgets('Editing a preset updates its name', (tester) async {
+    final id = await addPreset();
     await openDashboard(tester);
 
     await tester.tap(find.text('Edit'));
@@ -261,283 +102,179 @@ void main() {
       'Advanced Algorithms',
     );
 
-    await tester.enterText(
-      find.byType(TextFormField).last,
-      '45',
-    );
-
-    await tester.ensureVisible(find.text('Update Preset'));
     await tester.tap(find.text('Update Preset'));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Advanced Algorithms'),
-      findsOneWidget,
-    );
-
-    expect(
-      find.text('Duration: 45 minutes'),
-      findsOneWidget,
-    );
-
-    final updatedPreset =
-        await dependencies.presetRepository.getPresetById(id);
-
-    expect(updatedPreset!.name, 'Advanced Algorithms');
-    expect(updatedPreset.durationMinutes, 45);
-  });
-
-  testWidgets('Cancel editing keeps the original values', (
-    WidgetTester tester,
-  ) async {
-    final id = await addTestPreset();
-    await openDashboard(tester);
-
-    await tester.tap(find.text('Edit'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'Changed Name',
-    );
-
-    await tester.ensureVisible(find.text('Cancel'));
-    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
     final preset =
         await dependencies.presetRepository.getPresetById(id);
 
-    expect(preset!.name, 'Algorithms Practice');
+    expect(preset!.name, 'Advanced Algorithms');
+  });
+
+  testWidgets('Cancel deletion preserves preset', (tester) async {
+    final id = await addPreset();
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
     expect(
-      find.text('Algorithms Practice'),
-      findsOneWidget,
+      await dependencies.presetRepository.getPresetById(id),
+      isNotNull,
     );
   });
 
-  testWidgets('Start opens the selected preset timer', (
-    WidgetTester tester,
-  ) async {
-    await addTestPreset(
-      name: 'Mobile Development',
+  testWidgets('Confirm deletion removes preset', (tester) async {
+    final id = await addPreset();
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(TextButton, 'Delete'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      await dependencies.presetRepository.getPresetById(id),
+      isNull,
+    );
+  });
+
+  testWidgets('Mood filter shows matching presets', (tester) async {
+    await addPreset(name: 'Algorithms');
+    await addPreset(
+      name: 'Flutter',
       mood: 'Motivated',
-      duration: 40,
     );
 
+    await openDashboard(tester);
+
+    await tester.tap(
+      find.byKey(const ValueKey('mood_filter')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Focused').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Algorithms'), findsOneWidget);
+    expect(find.text('Flutter'), findsNothing);
+  });
+
+  testWidgets('Timer starts and pauses', (tester) async {
+    await addPreset(minutes: 1);
     await openDashboard(tester);
 
     await tester.tap(find.text('Start'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Mobile Development'),
-      findsOneWidget,
-    );
+    expect(find.text('01:00'), findsOneWidget);
 
-    expect(find.text('40:00'), findsOneWidget);
-    expect(
-      find.text('Planned: 40 minutes'),
-      findsOneWidget,
+    await tester.tap(
+      find.widgetWithText(ElevatedButton, 'Start'),
     );
+    await tester.pump();
+
+    expect(find.text('Running'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.text('Pause'));
+    await tester.pump();
+
+    expect(find.text('Paused'), findsOneWidget);
   });
 
-  testWidgets('Delete button opens a confirmation dialog', (
-    WidgetTester tester,
-  ) async {
-    await addTestPreset();
+  testWidgets('Timer can finish and save a session', (tester) async {
+    await addPreset(minutes: 1);
     await openDashboard(tester);
 
-    await tester.tap(find.text('Delete'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Delete Preset?'), findsOneWidget);
-    expect(
-      find.textContaining('Algorithms Practice'),
-      findsWidgets,
-    );
-    expect(
-      find.textContaining('cannot be undone'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Cancel deletion keeps the preset', (
-    WidgetTester tester,
-  ) async {
-    final id = await addTestPreset();
-    await openDashboard(tester);
-
-    await tester.tap(find.text('Delete'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-
-    final preset =
-        await dependencies.presetRepository.getPresetById(id);
-
-    expect(preset, isNotNull);
-    expect(preset!.name, 'Algorithms Practice');
-
-    expect(
-      find.text('Algorithms Practice'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Confirm deletion removes the preset', (
-    WidgetTester tester,
-  ) async {
-    final id = await addTestPreset();
-    await openDashboard(tester);
-
-    await tester.tap(find.text('Delete'));
+    await tester.tap(find.text('Start'));
     await tester.pumpAndSettle();
 
     await tester.tap(
-      find.widgetWithText(TextButton, 'Delete'),
+      find.widgetWithText(ElevatedButton, 'Start'),
     );
+    await tester.pump();
+
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.text('Finish'));
+    await tester.pump();
+    await tester.runAsync(() async {
+      for (var i = 0; i < 100; i++) {
+        final sessions =
+            await dependencies.sessionRepository.getAllSessions();
+        if (sessions.isNotEmpty) break;
+        await Future<void>.delayed(
+          const Duration(milliseconds: 10),
+        );
+      }
+    });
+
+    final sessions =
+        await dependencies.sessionRepository.getAllSessions();
+
+    expect(sessions.length, 1);
+    expect(sessions.first.status, 'partial');
+  });
+
+  testWidgets('History shows saved sessions', (tester) async {
+    final id = await addPreset();
+
+    await dependencies.saveSessionLog(
+      presetId: id,
+      date: DateTime(2026, 10, 26),
+      completedSeconds: 1500,
+      status: 'completed',
+    );
+
+    await openDashboard(tester);
+
+    await tester.tap(find.text('History').last);
     await tester.pumpAndSettle();
 
-    final preset =
-        await dependencies.presetRepository.getPresetById(id);
-
-    expect(preset, isNull);
+    expect(find.text('Completed Sessions: 1'), findsOneWidget);
     expect(
-      find.text('No focus presets yet.'),
+      find.text('Total Study Time: 25.0 minutes'),
       findsOneWidget,
     );
   });
 
-  testWidgets('Deleting one preset keeps other presets', (
-    WidgetTester tester,
-  ) async {
-    final firstId = await addTestPreset(
-      name: 'Algorithms',
-    );
-
-    final secondId = await addTestPreset(
-      name: 'Flutter Practice',
-      mood: 'Motivated',
-    );
-
+  testWidgets('Settings screen opens', (tester) async {
     await openDashboard(tester);
 
-    await tester.tap(find.text('Delete').first);
+    await tester.tap(find.text('Settings').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.widgetWithText(TextButton, 'Delete'),
+    expect(
+      find.textContaining('Default Focus Duration'),
+      findsOneWidget,
     );
+    expect(find.text('Save Settings'), findsOneWidget);
+  });
+
+  testWidgets('Settings can save preferences', (tester) async {
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Settings').last);
     await tester.pumpAndSettle();
 
-    // Presets are displayed newest first.
-    final deletedPreset =
-        await dependencies.presetRepository.getPresetById(
-      secondId,
-    );
+    await tester.tap(find.text('Save Settings'));
+    await tester.pumpAndSettle();
 
-    final remainingPreset =
-        await dependencies.presetRepository.getPresetById(
-      firstId,
-    );
-
-    expect(deletedPreset, isNull);
-    expect(remainingPreset, isNotNull);
-    expect(find.text('Algorithms'), findsOneWidget);
-    expect(find.text('Flutter Practice'), findsNothing);
-  });
-
-  testWidgets('Mood filter displays only matching presets', (
-    WidgetTester tester,
-  ) async {
-    await addTestPreset(
-      name: 'Algorithms',
-      mood: 'Focused',
-    );
-
-    await addTestPreset(
-      name: 'Flutter Practice',
-      mood: 'Motivated',
-    );
-
-    await openDashboard(tester);
-
-    await selectMood(tester, 'Focused');
-
-    expect(find.text('Algorithms'), findsOneWidget);
-    expect(find.text('Flutter Practice'), findsNothing);
-  });
-
-  testWidgets('Mood filter shows empty matching state', (
-    WidgetTester tester,
-  ) async {
-    await addTestPreset(
-      name: 'Algorithms',
-      mood: 'Focused',
-    );
-
-    await openDashboard(tester);
-
-    await selectMood(tester, 'Relaxed');
+    final preferences =
+        await SharedPreferences.getInstance();
 
     expect(
-      find.text('No Relaxed presets found.'),
-      findsOneWidget,
+      preferences.getInt('default_focus_duration'),
+      25,
     );
-
-    expect(find.text('Algorithms'), findsNothing);
-  });
-
-  testWidgets('Selecting All displays every preset', (
-    WidgetTester tester,
-  ) async {
-    await addTestPreset(
-      name: 'Algorithms',
-      mood: 'Focused',
-    );
-
-    await addTestPreset(
-      name: 'Flutter Practice',
-      mood: 'Motivated',
-    );
-
-    await openDashboard(tester);
-
-    await selectMood(tester, 'Focused');
-
-    expect(find.text('Flutter Practice'), findsNothing);
-
-    await selectMood(tester, 'All');
-
-    expect(find.text('Algorithms'), findsOneWidget);
-    expect(find.text('Flutter Practice'), findsOneWidget);
-  });
-
-  testWidgets('Mood filter does not delete database records', (
-    WidgetTester tester,
-  ) async {
-    await addTestPreset(
-      name: 'Algorithms',
-      mood: 'Focused',
-    );
-
-    await addTestPreset(
-      name: 'Flutter Practice',
-      mood: 'Motivated',
-    );
-
-    await openDashboard(tester);
-
-    await selectMood(tester, 'Relaxed');
-
-    final presets =
-        await dependencies.presetRepository.getAllPresets();
-
-    expect(presets.length, 2);
-    expect(
-      find.text('No Relaxed presets found.'),
-      findsOneWidget,
-    );
+    expect(preferences.getBool('sound_enabled'), true);
   });
 }

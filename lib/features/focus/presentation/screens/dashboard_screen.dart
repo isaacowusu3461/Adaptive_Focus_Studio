@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/focus_preset.dart';
+import '../../domain/entities/session_log.dart';
 import '../providers/focus_dependencies.dart';
 import 'focus_timer_screen.dart';
 import 'preset_form_screen.dart';
@@ -16,16 +17,17 @@ class DashboardScreen extends StatefulWidget {
 
   @override
   State<DashboardScreen> createState() =>
-      _DashboardScreenState();
+      DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class DashboardScreenState extends State<DashboardScreen> {
   late Future<List<FocusPreset>> _presetsFuture;
+  late Future<List<SessionLog>> _sessionsFuture;
 
   String _selectedMood = 'All';
   bool _isDeleting = false;
 
-  static const List<String> _moods = [
+  static const _moods = [
     'All',
     'Focused',
     'Relaxed',
@@ -35,18 +37,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPresets();
+    _loadData();
   }
 
-  void _loadPresets() {
+  void _loadData() {
     _presetsFuture =
         widget.dependencies.presetRepository.getAllPresets();
+
+    _sessionsFuture =
+        widget.dependencies.sessionRepository.getAllSessions();
   }
 
-  void _refreshPresets() {
-    setState(() {
-      _loadPresets();
-    });
+  void reload() {
+    setState(_loadData);
   }
 
   Future<void> _openPresetForm({FocusPreset? preset}) async {
@@ -63,67 +66,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
 
-    if (!mounted) {
-      return;
-    }
-
-    if (saved == true) {
-      _refreshPresets();
+    if (mounted && saved == true) {
+      reload();
     }
   }
 
-  void _startPreset(FocusPreset preset) {
-    Navigator.push(
+  Future<void> _startPreset(FocusPreset preset) async {
+    await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (context) => FocusTimerScreen(
           preset: preset,
+          saveSessionLog:
+              widget.dependencies.saveSessionLog,
         ),
       ),
     );
+
+    if (mounted) {
+      reload();
+    }
   }
 
   Future<void> _confirmDelete(FocusPreset preset) async {
-    if (_isDeleting || preset.id == null) {
-      return;
-    }
+    if (_isDeleting || preset.id == null) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Delete Preset?'),
-          content: Text(
-            'Are you sure you want to delete '
-            '"${preset.name}"?\n\n'
-            'Any study sessions linked to this preset '
-            'will also be deleted. This cannot be undone.',
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Preset?'),
+        content: Text(
+          'Are you sure you want to delete '
+          '"${preset.name}"?\n\n'
+          'Any study sessions linked to this preset '
+          'will also be deleted. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
 
-    if (!mounted || confirmed != true) {
-      return;
-    }
+    if (!mounted || confirmed != true) return;
 
-    setState(() {
-      _isDeleting = true;
-    });
+    setState(() => _isDeleting = true);
 
     try {
       final deletedRows =
@@ -131,58 +126,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
         preset.id!,
       );
 
-      if (!mounted) {
-        return;
-      }
-
-      if (deletedRows == 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Preset was not found.'),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '"${preset.name}" was deleted.',
-            ),
-          ),
-        );
-      }
-
-      _refreshPresets();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Unable to delete preset. Please try again.',
+            deletedRows == 0
+                ? 'Preset was not found.'
+                : '"${preset.name}" was deleted.',
           ),
         ),
       );
+
+      reload();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to delete preset.'),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
-        setState(() {
-          _isDeleting = false;
-        });
+        setState(() => _isDeleting = false);
       }
     }
   }
 
-  List<FocusPreset> _filterPresets(
-    List<FocusPreset> presets,
-  ) {
-    if (_selectedMood == 'All') {
-      return presets;
-    }
+  Widget _buildSummary(List<SessionLog> sessions) {
+    final completed = sessions
+        .where((session) => session.status == 'completed')
+        .length;
 
-    return presets.where((preset) {
-      return preset.moodTag == _selectedMood;
-    }).toList();
+    final totalSeconds = sessions.fold<int>(
+      0,
+      (sum, session) => sum + session.completedSeconds,
+    );
+
+    final average = sessions.isEmpty
+        ? 0.0
+        : totalSeconds / sessions.length / 60;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Completed Sessions: $completed'),
+            const SizedBox(height: 8),
+            Text(
+              'Total Study Time: '
+              '${(totalSeconds / 60).toStringAsFixed(1)} minutes',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Average Duration: '
+              '${average.toStringAsFixed(1)} minutes',
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPresetList(List<FocusPreset> presets) {
@@ -192,19 +198,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: EdgeInsets.all(24),
           child: Column(
             children: [
-              Icon(
-                Icons.bookmark_border,
-                size: 48,
-                color: Colors.grey,
-              ),
+              Icon(Icons.bookmark_border, size: 48),
               SizedBox(height: 12),
-              Text(
-                'No focus presets yet.',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text('No focus presets yet.'),
               SizedBox(height: 8),
               Text(
                 'Tap New to create your first study preset.',
@@ -216,41 +212,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    final filteredPresets = _filterPresets(presets);
+    final filtered = _selectedMood == 'All'
+        ? presets
+        : presets
+            .where((preset) =>
+                preset.moodTag == _selectedMood)
+            .toList();
 
-    if (filteredPresets.isEmpty) {
+    if (filtered.isEmpty) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const Icon(
-                Icons.filter_alt_off_outlined,
-                size: 48,
-                color: Colors.grey,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'No $_selectedMood presets found.',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Try selecting another mood or '
-                'create a new preset.',
-                textAlign: TextAlign.center,
-              ),
-            ],
+          child: Text(
+            'No $_selectedMood presets found.',
           ),
         ),
       );
     }
 
     return Column(
-      children: filteredPresets.map((preset) {
+      children: filtered.map((preset) {
         return Card(
           key: ValueKey('preset_${preset.id}'),
           child: Padding(
@@ -267,13 +248,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text('Mood: ${preset.moodTag}'),
-                const SizedBox(height: 4),
                 Text(
                   'Duration: ${preset.durationMinutes} minutes',
                 ),
                 const SizedBox(height: 12),
                 Wrap(
-                  alignment: WrapAlignment.end,
                   spacing: 8,
                   runSpacing: 8,
                   children: [
@@ -327,22 +306,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Completed Sessions: 0'),
-                  SizedBox(height: 8),
-                  Text('Average Duration: 0 minutes'),
-                ],
-              ),
-            ),
+          FutureBuilder<List<SessionLog>>(
+            future: _sessionsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return const Text(
+                  'Unable to load study summary.',
+                );
+              }
+
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
+
+              return _buildSummary(snapshot.data!);
+            },
           ),
           const SizedBox(height: 24),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
             children: [
               const Expanded(
                 child: Text(
@@ -379,9 +364,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             }).toList(),
             onChanged: (value) {
               if (value != null) {
-                setState(() {
-                  _selectedMood = value;
-                });
+                setState(() => _selectedMood = value);
               }
             },
           ),
@@ -389,32 +372,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
           FutureBuilder<List<FocusPreset>>(
             future: _presetsFuture,
             builder: (context, snapshot) {
-              if (snapshot.connectionState ==
-                  ConnectionState.waiting) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
-
               if (snapshot.hasError) {
-                return Column(
-                  children: [
-                    const Text(
-                      'Unable to load focus presets.',
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: _refreshPresets,
-                      child: const Text('Retry'),
-                    ),
-                  ],
+                return ElevatedButton(
+                  onPressed: reload,
+                  child: const Text('Retry'),
                 );
               }
 
-              return _buildPresetList(snapshot.data ?? []);
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
+
+              return _buildPresetList(snapshot.data!);
             },
           ),
           const SizedBox(height: 24),
