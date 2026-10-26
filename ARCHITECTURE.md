@@ -3,15 +3,13 @@
 
 ## Overview
 
-Adaptive Focus Studio uses clean architecture
-to separate Flutter UI components, business
-logic, and persistent data storage.
+Adaptive Focus Studio follows clean architecture
+to separate Flutter presentation, business logic,
+and local data storage.
 
 The application works offline.
 
 ## Presentation Layer
-
-Contains screens and UI state.
 
 Screens:
 - Welcome
@@ -21,69 +19,85 @@ Screens:
 - History & Insights
 - Settings
 
-The Dashboard displays saved presets and study
-statistics.
+The Dashboard displays saved focus presets and
+study statistics.
 
 The Focus Timer manages countdown state.
 
-History & Insights displays and manages
-saved session logs.
+History & Insights manages session logs.
 
-Settings uses SharedPreferences for local
-preference persistence.
+Settings stores preferences using SharedPreferences.
+
+Session Scout's interactive Dashboard interface
+will be implemented in Commit 11.
 
 ## Domain Layer
 
-Entities:
+### Entities
+
 - FocusPreset
 - SessionLog
+- SessionScoutRecommendation
 
-Repository interfaces:
+### Repository Interfaces
+
 - FocusPresetRepository
 - SessionLogRepository
 
-Use cases:
+### Use Cases
+
 - CreateFocusPreset
 - UpdateFocusPreset
 - DeleteFocusPreset
 - SaveSessionLog
+- CalculateSessionScout
+- GetSessionScoutRecommendation
 
-Domain classes do not depend on Flutter widgets
-or SQLite implementations.
+CalculateSessionScout performs the median
+calculation independently of SQLite.
+
+GetSessionScoutRecommendation retrieves saved
+sessions, filters them, and calls the calculation
+use case.
 
 ## Data Layer
 
-Database helper:
-- DatabaseHelper
+### Database
 
-Models:
+DatabaseHelper manages the SQLite database.
+
+Database name:
+
+adaptive_focus_studio.db
+
+Database version:
+
+1
+
+### Models
+
 - FocusPresetModel
 - SessionLogModel
 
-Repository implementations:
+### Repository Implementations
+
 - FocusPresetRepositoryImpl
 - SessionLogRepositoryImpl
-
-SQLite stores both focus presets and session logs.
 
 ## Dependency Direction
 
 Presentation -> Domain <- Data
 
-FocusDependencies currently creates and shares
-repository implementations and use cases.
+The domain layer defines repository interfaces.
+
+The data layer implements those interfaces.
+
+FocusDependencies creates repositories and
+use cases and supplies them to screens.
 
 Riverpod will be introduced in a later commit.
 
-## SQLite Database
-
-Name:
-
-adaptive_focus_studio.db
-
-Version:
-
-1
+## SQLite Tables
 
 ### focus_presets
 
@@ -101,148 +115,184 @@ Version:
 - status
 - notes
 
-Session logs reference focus presets.
+Foreign keys are enabled.
 
-Foreign keys are enabled and ON DELETE CASCADE
-removes related logs when a preset is deleted.
+Deleting a preset automatically deletes related
+session logs using ON DELETE CASCADE.
 
 ## Timer Lifecycle
 
-Timer states:
+States:
 - ready
 - running
 - paused
 - finished
 
-### Start
+The timer uses Stopwatch for elapsed-time
+measurement and Timer.periodic for display updates.
 
-Starts the Stopwatch and periodic UI updates.
+Completed sessions are saved automatically.
 
-### Pause
+Sessions finished early are marked partial.
 
-Stops elapsed-time measurement and cancels
-the periodic timer.
+## History and Statistics
 
-### Resume
+History supports:
+- Read session logs
+- Add manual session logs
+- Edit session logs
+- Delete session logs
 
-Restarts elapsed-time measurement without
-clearing the previous elapsed duration.
+Statistics include:
+- Completed-session count
+- Total study duration
+- Average study duration
 
-### Finish
+## Settings
 
-Stops the timer and saves a session.
-
-Sessions finished before the planned duration
-receive the status "partial".
-
-### Automatic Completion
-
-When the remaining time reaches zero, the
-session is saved with status "completed".
-
-### Reset
-
-Stops and resets the timer without creating
-a session record.
-
-## Session Recording
-
-1. The user starts a focus session.
-2. Stopwatch measures elapsed time.
-3. The user finishes or the countdown ends.
-4. SaveSessionLog validates the session.
-5. SessionLogRepositoryImpl inserts it into SQLite.
-6. History & Insights retrieves the saved session.
-
-## Session Statistics
-
-Completed Sessions:
-Count of session logs with status "completed".
-
-Total Study Time:
-Sum of completed_seconds across all saved sessions.
-
-Average Duration:
-Total completed_seconds divided by the number
-of saved sessions.
-
-Partial sessions contribute to total and
-average study time.
-
-## History Management
-
-History & Insights supports:
-- Read saved sessions
-- Add manual sessions
-- Edit session details
-- Delete sessions
-- Refresh session history
-
-The screen calculates statistics from saved
-SQLite records.
-
-## Settings Persistence
-
-SharedPreferences keys:
+SharedPreferences stores:
 - default_focus_duration
 - reminders_enabled
 - reduce_motion
 - sound_enabled
 
-Preferences are loaded when the Settings screen
-initializes and saved when the user taps
-Save Settings.
+## Session Scout Recommendation Algorithm
 
-Reminder scheduling, animations, and sound
-effects are planned for later commits.
+### Purpose
+
+Suggest a study duration based on the user's
+recent completed sessions for a selected mood.
+
+### Inputs
+
+- Mood tag
+- Saved focus presets
+- Saved session logs
+
+### Processing
+
+1. Validate the mood tag.
+2. Retrieve focus presets and session logs.
+3. Identify presets with the requested mood.
+4. Filter session logs by matching preset IDs.
+5. Exclude partial sessions.
+6. Sort matching sessions by date descending.
+7. Select the three most recent sessions.
+8. Calculate the median completed duration.
+9. Round to the nearest whole minute.
+10. Clamp the recommendation to 10-60 minutes.
+11. Return the recommendation and explanation.
+
+### Fallback
+
+If fewer than three matching completed sessions
+exist, return a fixed 25-minute recommendation.
+
+### Median Example
+
+Completed durations:
+- 20 minutes
+- 30 minutes
+- 25 minutes
+
+Sorted durations:
+- 20 minutes
+- 25 minutes
+- 30 minutes
+
+Median:
+25 minutes
+
+Suggested duration:
+25 minutes
+
+### Clamping Example
+
+Completed durations:
+- 70 minutes
+- 80 minutes
+- 90 minutes
+
+Median:
+80 minutes
+
+Suggested duration:
+60 minutes
+
+### Output
+
+SessionScoutRecommendation contains:
+- moodTag
+- suggestedMinutes
+- explanation
+- sessionsUsed
+- usedFallback
+
+### Current Data Limitation
+
+Mood is determined using the preset currently
+associated with each session.
+
+Editing a preset's mood therefore changes how
+its historical sessions are grouped.
+
+Deleting a preset removes its related sessions.
+
+These behaviors follow the existing SQLite schema.
 
 ## Testing
 
+### Calculation Tests
+
+Test:
+- Median calculation
+- Three-session selection
+- Fallback behavior
+- Minimum duration
+- Maximum duration
+- Rounding
+- Input validation
+- Explanation generation
+
+### Repository Integration Tests
+
+Test:
+- SQLite session retrieval
+- Mood filtering
+- Completed-session filtering
+- Date ordering
+- Multiple presets with the same mood
+- Fallback
+- Clamping
+
 Database tests use sqflite_common_ffi with
 in-memory SQLite databases.
-
-Unit tests cover:
-- Entities
-- Repository validation
-- Create, update, and delete use cases
-- Session saving
-
-Widget tests cover:
-- Navigation
-- Preset management
-- Timer interactions
-- History display
-- Settings persistence
-
-Additional timer and integration testing
-will be implemented in later commits.
 
 ## Development Progress
 
 ### Commits 1-8
 
-Flutter initialization, architecture, navigation,
-SQLite database, and preset management.
+Project setup, architecture, navigation,
+SQLite, and preset CRUD.
 
 ### Commit 9
 
-Combined original Commits 9-13:
-- Focus timer
-- Timer lifecycle
-- Session saving
-- History & Insights
-- Session CRUD and statistics
-- Persistent settings
+Focus timer, session history, statistics,
+and persistent settings.
+
+### Commit 10
+
+Session Scout recommendation calculation,
+repository integration, and tests.
 
 ## Planned Improvements
 
-- Session Scout recommendation algorithm
-- Session Scout UI and evaluation
+- Session Scout Dashboard interface
+- Baseline comparison and evaluation
 - Riverpod state management
 - Animations and responsive layouts
 - Dart isolate for statistics
 - Local notifications
 - JSON export and import
-- Additional unit and widget tests
-- Integration tests
-- Coverage and documentation
+- Additional tests and coverage
+- Integration testing
