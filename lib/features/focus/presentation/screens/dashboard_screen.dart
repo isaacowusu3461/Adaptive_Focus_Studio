@@ -22,6 +22,16 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   late Future<List<FocusPreset>> _presetsFuture;
 
+  String _selectedMood = 'All';
+  bool _isDeleting = false;
+
+  static const List<String> _moods = [
+    'All',
+    'Focused',
+    'Relaxed',
+    'Motivated',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -73,6 +83,108 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Future<void> _confirmDelete(FocusPreset preset) async {
+    if (_isDeleting || preset.id == null) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Preset?'),
+          content: Text(
+            'Are you sure you want to delete '
+            '"${preset.name}"?\n\n'
+            'Any study sessions linked to this preset '
+            'will also be deleted. This cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || confirmed != true) {
+      return;
+    }
+
+    setState(() {
+      _isDeleting = true;
+    });
+
+    try {
+      final deletedRows =
+          await widget.dependencies.deleteFocusPreset(
+        preset.id!,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (deletedRows == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Preset was not found.'),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '"${preset.name}" was deleted.',
+            ),
+          ),
+        );
+      }
+
+      _refreshPresets();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unable to delete preset. Please try again.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
+  }
+
+  List<FocusPreset> _filterPresets(
+    List<FocusPreset> presets,
+  ) {
+    if (_selectedMood == 'All') {
+      return presets;
+    }
+
+    return presets.where((preset) {
+      return preset.moodTag == _selectedMood;
+    }).toList();
+  }
+
   Widget _buildPresetList(List<FocusPreset> presets) {
     if (presets.isEmpty) {
       return const Card(
@@ -104,9 +216,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
+    final filteredPresets = _filterPresets(presets);
+
+    if (filteredPresets.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const Icon(
+                Icons.filter_alt_off_outlined,
+                size: 48,
+                color: Colors.grey,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No $_selectedMood presets found.',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Try selecting another mood or '
+                'create a new preset.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Column(
-      children: presets.map((preset) {
+      children: filteredPresets.map((preset) {
         return Card(
+          key: ValueKey('preset_${preset.id}'),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -120,29 +266,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Mood: ${preset.moodTag}',
-                ),
+                Text('Mood: ${preset.moodTag}'),
                 const SizedBox(height: 4),
                 Text(
                   'Duration: ${preset.durationMinutes} minutes',
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     OutlinedButton.icon(
-                      onPressed: () {
-                        _openPresetForm(preset: preset);
-                      },
+                      onPressed: _isDeleting
+                          ? null
+                          : () => _openPresetForm(
+                                preset: preset,
+                              ),
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Edit'),
                     ),
-                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: _isDeleting
+                          ? null
+                          : () => _confirmDelete(preset),
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Delete'),
+                    ),
                     ElevatedButton.icon(
-                      onPressed: () {
-                        _startPreset(preset);
-                      },
+                      onPressed: _isDeleting
+                          ? null
+                          : () => _startPreset(preset),
                       icon: const Icon(Icons.play_arrow),
                       label: const Text('Start'),
                     ),
@@ -200,13 +354,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: () => _openPresetForm(),
+                onPressed: _isDeleting
+                    ? null
+                    : () => _openPresetForm(),
                 icon: const Icon(Icons.add),
                 label: const Text('New'),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            key: const ValueKey('mood_filter'),
+            initialValue: _selectedMood,
+            decoration: const InputDecoration(
+              labelText: 'Filter by Mood',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.filter_list),
+            ),
+            items: _moods.map((mood) {
+              return DropdownMenuItem(
+                value: mood,
+                child: Text(mood),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _selectedMood = value;
+                });
+              }
+            },
+          ),
+          const SizedBox(height: 16),
           FutureBuilder<List<FocusPreset>>(
             future: _presetsFuture,
             builder: (context, snapshot) {

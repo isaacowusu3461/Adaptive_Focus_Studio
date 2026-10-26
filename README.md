@@ -17,9 +17,9 @@ Isaac Owusu
 
 The application is designed to work offline.
 
-Students can create and edit focus presets, view
-saved presets on the Dashboard, and open the timer
-with a selected preset.
+Students can create, edit, delete, and filter focus
+presets on the Dashboard. Saved presets remain
+available after restarting the application.
 
 SQLite stores focus presets and session logs.
 SharedPreferences will store application settings.
@@ -28,25 +28,31 @@ SharedPreferences will store application settings.
 
 - Welcome screen
 - Dashboard, History, and Settings navigation
-- SQLite database schema
+- SQLite database schema and models
 - Focus preset repository CRUD operations
 - Create focus presets
 - Edit existing focus presets
+- Delete presets with confirmation
+- Automatically delete related session logs
+- Filter presets by mood
 - Form validation
 - Persistent SQLite storage
 - Display saved presets on the Dashboard
 - Open the timer with a selected preset
+- Unit, database, and widget tests
 
 ## Planned Features
 
-- Delete presets from the UI
-- Filter presets by mood
 - Functional countdown timer
+- Save completed focus sessions
 - Session history and statistics
 - Session Scout recommendations
 - Persistent settings
+- Riverpod state management
+- Animations and responsive improvements
 - Local notifications
 - JSON export and import
+- Integration testing
 
 ## Technologies
 
@@ -83,7 +89,8 @@ planned duration.
 Session logs store a related preset ID, date,
 completed duration, status, and notes.
 
-Deleting a preset also deletes its related logs.
+Deleting a preset also deletes its related logs
+through SQLite foreign-key cascade deletion.
 
 ## Preset Management
 
@@ -101,8 +108,31 @@ Deleting a preset also deletes its related logs.
 3. Change the name, mood, or duration.
 4. Tap Update Preset.
 
-The application updates the existing SQLite
-record and refreshes the Dashboard.
+### Deleting a Preset
+
+1. Open the Dashboard.
+2. Tap Delete on a saved preset.
+3. Read the confirmation dialog.
+4. Tap Delete to confirm or Cancel to keep it.
+
+Deleting a preset permanently removes it and
+any related session logs.
+
+### Filtering Presets
+
+Use the Filter by Mood dropdown on the Dashboard.
+
+Available options:
+- All
+- Focused
+- Relaxed
+- Motivated
+
+Selecting a mood displays matching presets only.
+
+Selecting All displays every saved preset.
+
+Filtering does not change the SQLite database.
 
 ### Validation
 
@@ -132,8 +162,11 @@ Implemented repository CRUD operations.
 Connected the Dashboard and preset creation to SQLite.
 
 ### Commit 7
-Added preset editing, reusable create/edit form,
-improved validation, and tests.
+Added preset editing and improved form validation.
+
+### Commit 8
+Added preset deletion with confirmation,
+mood filtering, and automated tests.
 
 ## Running the Application
 
@@ -155,9 +188,13 @@ Run widget tests:
 
     flutter test test/widget_test.dart
 
-Run update use case tests:
+Run deletion use case tests:
 
-    flutter test test/features/focus/domain/update_focus_preset_test.dart
+    flutter test test/features/focus/domain/delete_focus_preset_test.dart
+
+Run repository tests:
+
+    flutter test test/features/focus/data/focus_preset_repository_test.dart
 
 Check for code issues:
 

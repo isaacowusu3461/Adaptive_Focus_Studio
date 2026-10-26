@@ -23,8 +23,15 @@ Current screens:
 - History & Insights
 - Settings
 
-The Dashboard retrieves presets through
+The Dashboard retrieves saved presets through
 FocusPresetRepository.
+
+The Dashboard supports:
+- Creating presets
+- Editing presets
+- Deleting presets
+- Filtering presets by mood
+- Opening the timer for a selected preset
 
 The PresetFormScreen supports both creating
 and editing presets.
@@ -44,11 +51,15 @@ Repository:
 Use cases:
 - CreateFocusPreset
 - UpdateFocusPreset
+- DeleteFocusPreset
 
 CreateFocusPreset handles new preset creation.
 
 UpdateFocusPreset validates changes and
-updates existing presets through the repository.
+updates existing presets.
+
+DeleteFocusPreset validates the preset ID
+before requesting deletion.
 
 The domain layer does not depend on SQLite
 or Flutter UI components.
@@ -83,6 +94,7 @@ FocusDependencies creates and shares:
 - FocusPresetRepositoryImpl
 - CreateFocusPreset
 - UpdateFocusPreset
+- DeleteFocusPreset
 
 Dependencies are passed to screens through
 constructors.
@@ -120,8 +132,10 @@ Columns:
 
 The session_logs table references focus_presets.
 
-Foreign keys are enabled, and deleting a preset
-automatically deletes related session logs.
+Foreign keys are enabled when the database opens.
+
+Deleting a preset automatically deletes its
+related session logs through ON DELETE CASCADE.
 
 ## Create Preset Data Flow
 
@@ -140,12 +154,42 @@ automatically deletes related session logs.
 3. The fields are populated with saved values.
 4. The user modifies the values.
 5. The form validates the changes.
-6. UpdateFocusPreset validates and normalizes
-   the input.
-7. The repository updates the SQLite record
-   using its ID.
-8. The Dashboard refreshes after a successful
-   update.
+6. UpdateFocusPreset validates the input.
+7. The repository updates the SQLite record.
+8. The Dashboard refreshes after the update.
+
+## Delete Preset Data Flow
+
+1. The user taps Delete on a saved preset.
+2. The Dashboard displays a confirmation dialog.
+3. Cancel closes the dialog without changing data.
+4. Confirm calls DeleteFocusPreset.
+5. DeleteFocusPreset validates the preset ID.
+6. The repository deletes the matching SQLite row.
+7. SQLite automatically deletes related session logs.
+8. The Dashboard refreshes the preset list.
+9. A SnackBar displays the result.
+
+## Mood Filtering
+
+The Dashboard stores the selected mood in local
+widget state.
+
+Available values:
+- All
+- Focused
+- Relaxed
+- Motivated
+
+When All is selected, every saved preset is shown.
+
+Otherwise, the Dashboard displays presets whose
+moodTag matches the selected mood.
+
+Filtering is performed in memory after the
+repository loads the presets.
+
+The filter does not modify the database.
 
 ## Form Validation
 
@@ -154,22 +198,34 @@ and cannot exceed 50 characters.
 
 Durations must be between 1 and 180 minutes.
 
-The update use case also validates the preset ID.
+The update use case validates the preset ID.
 
-These rules are enforced in the edit use case
-and presentation form.
+The delete use case rejects IDs less than 1.
 
 ## Testing
 
-Domain tests verify entity behavior,
-input validation, and use case logic.
+Domain tests verify:
+- Entity behavior
+- Input validation
+- Create, update, and delete use cases
 
-Database tests verify CRUD operations,
-foreign-key relationships, and cascade deletion.
+Database tests verify:
+- Table creation
+- Model conversion
+- CRUD operations
+- Foreign-key relationships
+- Cascade deletion
 
-Widget tests verify navigation, form validation,
-preset creation, preset editing, cancellation,
-and Dashboard updates.
+Widget tests verify:
+- Navigation
+- Preset creation
+- Preset editing
+- Canceling edits
+- Deletion confirmation
+- Canceling deletion
+- Successful deletion
+- Mood filtering
+- Empty states
 
 SQLite tests use sqflite_common_ffi with
 an in-memory database.
@@ -195,13 +251,16 @@ Focus preset repository CRUD operations.
 Dashboard integration with SQLite.
 
 ### Commit 7
-Preset editing, reusable form, improved
-validation, and tests.
+Preset editing and improved validation.
+
+### Commit 8
+Preset deletion, confirmation dialog,
+mood filtering, and automated tests.
 
 ## Future Improvements
 
-- Preset deletion and mood filtering
-- Timer lifecycle and session recording
+- Functional countdown timer
+- Session recording
 - Session history and statistics
 - Riverpod state management
 - Session Scout recommendations

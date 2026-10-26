@@ -54,6 +54,19 @@ void main() {
     );
   }
 
+  Future<void> selectMood(
+    WidgetTester tester,
+    String mood,
+  ) async {
+    await tester.tap(
+      find.byKey(const ValueKey('mood_filter')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(mood).last);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('Welcome screen displays expected content', (
     WidgetTester tester,
   ) async {
@@ -324,6 +337,206 @@ void main() {
     expect(find.text('40:00'), findsOneWidget);
     expect(
       find.text('Planned: 40 minutes'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Delete button opens a confirmation dialog', (
+    WidgetTester tester,
+  ) async {
+    await addTestPreset();
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete Preset?'), findsOneWidget);
+    expect(
+      find.textContaining('Algorithms Practice'),
+      findsWidgets,
+    );
+    expect(
+      find.textContaining('cannot be undone'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Cancel deletion keeps the preset', (
+    WidgetTester tester,
+  ) async {
+    final id = await addTestPreset();
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    final preset =
+        await dependencies.presetRepository.getPresetById(id);
+
+    expect(preset, isNotNull);
+    expect(preset!.name, 'Algorithms Practice');
+
+    expect(
+      find.text('Algorithms Practice'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Confirm deletion removes the preset', (
+    WidgetTester tester,
+  ) async {
+    final id = await addTestPreset();
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(TextButton, 'Delete'),
+    );
+    await tester.pumpAndSettle();
+
+    final preset =
+        await dependencies.presetRepository.getPresetById(id);
+
+    expect(preset, isNull);
+    expect(
+      find.text('No focus presets yet.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Deleting one preset keeps other presets', (
+    WidgetTester tester,
+  ) async {
+    final firstId = await addTestPreset(
+      name: 'Algorithms',
+    );
+
+    final secondId = await addTestPreset(
+      name: 'Flutter Practice',
+      mood: 'Motivated',
+    );
+
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Delete').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(TextButton, 'Delete'),
+    );
+    await tester.pumpAndSettle();
+
+    // Presets are displayed newest first.
+    final deletedPreset =
+        await dependencies.presetRepository.getPresetById(
+      secondId,
+    );
+
+    final remainingPreset =
+        await dependencies.presetRepository.getPresetById(
+      firstId,
+    );
+
+    expect(deletedPreset, isNull);
+    expect(remainingPreset, isNotNull);
+    expect(find.text('Algorithms'), findsOneWidget);
+    expect(find.text('Flutter Practice'), findsNothing);
+  });
+
+  testWidgets('Mood filter displays only matching presets', (
+    WidgetTester tester,
+  ) async {
+    await addTestPreset(
+      name: 'Algorithms',
+      mood: 'Focused',
+    );
+
+    await addTestPreset(
+      name: 'Flutter Practice',
+      mood: 'Motivated',
+    );
+
+    await openDashboard(tester);
+
+    await selectMood(tester, 'Focused');
+
+    expect(find.text('Algorithms'), findsOneWidget);
+    expect(find.text('Flutter Practice'), findsNothing);
+  });
+
+  testWidgets('Mood filter shows empty matching state', (
+    WidgetTester tester,
+  ) async {
+    await addTestPreset(
+      name: 'Algorithms',
+      mood: 'Focused',
+    );
+
+    await openDashboard(tester);
+
+    await selectMood(tester, 'Relaxed');
+
+    expect(
+      find.text('No Relaxed presets found.'),
+      findsOneWidget,
+    );
+
+    expect(find.text('Algorithms'), findsNothing);
+  });
+
+  testWidgets('Selecting All displays every preset', (
+    WidgetTester tester,
+  ) async {
+    await addTestPreset(
+      name: 'Algorithms',
+      mood: 'Focused',
+    );
+
+    await addTestPreset(
+      name: 'Flutter Practice',
+      mood: 'Motivated',
+    );
+
+    await openDashboard(tester);
+
+    await selectMood(tester, 'Focused');
+
+    expect(find.text('Flutter Practice'), findsNothing);
+
+    await selectMood(tester, 'All');
+
+    expect(find.text('Algorithms'), findsOneWidget);
+    expect(find.text('Flutter Practice'), findsOneWidget);
+  });
+
+  testWidgets('Mood filter does not delete database records', (
+    WidgetTester tester,
+  ) async {
+    await addTestPreset(
+      name: 'Algorithms',
+      mood: 'Focused',
+    );
+
+    await addTestPreset(
+      name: 'Flutter Practice',
+      mood: 'Motivated',
+    );
+
+    await openDashboard(tester);
+
+    await selectMood(tester, 'Relaxed');
+
+    final presets =
+        await dependencies.presetRepository.getAllPresets();
+
+    expect(presets.length, 2);
+    expect(
+      find.text('No Relaxed presets found.'),
       findsOneWidget,
     );
   });
