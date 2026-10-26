@@ -1,11 +1,23 @@
 
 import 'package:flutter/material.dart';
 
+import '../../domain/entities/focus_preset.dart';
+
 class FocusTimerScreen extends StatelessWidget {
-  const FocusTimerScreen({super.key});
+  final FocusPreset preset;
+
+  const FocusTimerScreen({
+    super.key,
+    required this.preset,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final minutes = preset.durationMinutes.toString().padLeft(
+      2,
+      '0',
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Focus Session'),
@@ -17,17 +29,18 @@ class FocusTimerScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  'Example Study Preset',
-                  style: TextStyle(
+                Text(
+                  preset.name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 32),
-                const Text(
-                  '25:00',
-                  style: TextStyle(
+                Text(
+                  '$minutes:00',
+                  style: const TextStyle(
                     fontSize: 60,
                     fontWeight: FontWeight.bold,
                     color: Colors.indigo,
@@ -60,14 +73,16 @@ class FocusTimerScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 32),
-                const Card(
+                Card(
                   child: Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        Text('Planned: 25 minutes'),
-                        SizedBox(height: 8),
-                        Text('Completed: 0 minutes'),
+                        Text(
+                          'Planned: ${preset.durationMinutes} minutes',
+                        ),
+                        const SizedBox(height: 8),
+                        const Text('Completed: 0 minutes'),
                       ],
                     ),
                   ),

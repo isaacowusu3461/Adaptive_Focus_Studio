@@ -1,12 +1,18 @@
 
 import 'package:flutter/material.dart';
 
+import '../providers/focus_dependencies.dart';
 import 'dashboard_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final FocusDependencies dependencies;
+
+  const MainScreen({
+    super.key,
+    required this.dependencies,
+  });
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -15,11 +21,20 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = const [
-    DashboardScreen(),
-    HistoryScreen(),
-    SettingsScreen(),
-  ];
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _screens = [
+      DashboardScreen(
+        dependencies: widget.dependencies,
+      ),
+      const HistoryScreen(),
+      const SettingsScreen(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {

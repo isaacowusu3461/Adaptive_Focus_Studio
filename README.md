@@ -17,91 +17,81 @@ Isaac Owusu
 
 The application is designed to work offline.
 
-Students will be able to create study presets,
-manage focus sessions, review study history,
-and receive study-duration recommendations.
+Students can create focus presets and view them
+on the Dashboard. Additional features will include
+focus timers, study history, statistics, and
+personalized study recommendations.
 
 SQLite stores focus presets and session logs.
 SharedPreferences will store application settings.
 
-## Planned Features
+## Features
 
-- Create, view, edit, and delete focus presets
-- Start, pause, resume, finish, and reset sessions
-- Track completed study sessions
+### Implemented
+
+- Welcome screen
+- Dashboard navigation
+- History and Settings screen layouts
+- SQLite database schema
+- Focus preset repository CRUD operations
+- Create focus preset form
+- Form validation
+- Save presets to SQLite
+- Load saved presets on the Dashboard
+- Open the timer screen with a selected preset
+
+### Planned
+
+- Edit and delete presets from the UI
 - Filter presets by mood
-- View study history and statistics
-- Receive recommendations from Session Scout
-- Customize timer settings and reminders
+- Functional countdown timer
+- Session history and statistics
+- Session Scout recommendations
+- Persistent settings
+- Local notifications
+- JSON export and import
 
 ## Technologies
 
 - Flutter and Dart
 - SQLite
 - SharedPreferences
-- Riverpod
+- Riverpod (planned)
 - Material Design 3
 - sqflite_common_ffi for database testing
 
 ## Architecture
 
-The project follows clean architecture with
-three main layers:
+The project follows clean architecture:
 
-- Presentation: Screens, widgets, and state
+- Presentation: Screens, widgets, and UI state
 - Domain: Entities, repository contracts, and use cases
-- Data: Database models and storage implementations
+- Data: SQLite models and repository implementations
 
 See ARCHITECTURE.md for more details.
 
 ## Local Database
 
-The SQLite database is named:
+Database name:
 
 adaptive_focus_studio.db
 
-It contains two related tables:
+Tables:
+- focus_presets
+- session_logs
 
-### focus_presets
+Focus presets contain a name, mood tag, and
+planned duration.
 
-Stores:
-- ID
-- Name
-- Mood tag
-- Planned duration in minutes
+Session logs contain a related preset ID, date,
+completed duration, status, and notes.
 
-### session_logs
-
-Stores:
-- ID
-- Related preset ID
-- Date
-- Completed duration in seconds
-- Status
-- Notes
-
-Deleting a preset also deletes its related
-session logs.
-
-## Repository Operations
-
-The FocusPresetRepositoryImpl class provides
-SQLite CRUD operations for focus presets.
-
-Supported operations:
-- Create a preset
-- Retrieve all presets
-- Retrieve a preset by ID
-- Update a preset
-- Delete a preset
-
-The CreateFocusPreset use case validates
-and normalizes input before saving.
+Deleting a preset also deletes its related logs.
 
 ## Current Progress
 
 ### Commit 1
-Initialized the Flutter project and welcome screen.
+Initialized the Flutter project.
 
 ### Commit 2
 Introduced clean architecture and domain components.
@@ -110,15 +100,18 @@ Introduced clean architecture and domain components.
 Created the five main screens and navigation.
 
 ### Commit 4
-Implemented SQLite database schema,
-data models, and database tests.
+Implemented SQLite database schema and models.
 
 ### Commit 5
-Implemented focus preset repository CRUD
-operations and the CreateFocusPreset use case.
+Implemented repository CRUD operations and
+the CreateFocusPreset use case.
 
-The repository is not yet connected to the
-application screens.
+### Commit 6
+Connected the Dashboard and Create Preset form
+to SQLite.
+
+Users can now save presets, view saved presets,
+and open the timer with a selected preset.
 
 ## Running the Application
 
@@ -136,15 +129,11 @@ Run all tests:
 
     flutter test
 
-Run repository tests:
+Run widget tests:
 
-    flutter test test/features/focus/data/focus_preset_repository_test.dart
+    flutter test test/widget_test.dart
 
-Run use case tests:
-
-    flutter test test/features/focus/domain/create_focus_preset_test.dart
-
-Check for code issues:
+Run static analysis:
 
     flutter analyze
 

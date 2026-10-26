@@ -1,10 +1,16 @@
 
 import 'package:flutter/material.dart';
 
+import '../providers/focus_dependencies.dart';
 import 'main_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
+  final FocusDependencies dependencies;
+
+  const WelcomeScreen({
+    super.key,
+    required this.dependencies,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +55,9 @@ class WelcomeScreen extends StatelessWidget {
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const MainScreen(),
+                        builder: (context) => MainScreen(
+                          dependencies: dependencies,
+                        ),
                       ),
                     );
                   },
