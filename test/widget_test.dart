@@ -40,6 +40,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<int> addTestPreset({
+    String name = 'Algorithms Practice',
+    String mood = 'Focused',
+    int duration = 25,
+  }) {
+    return dependencies.presetRepository.createPreset(
+      FocusPreset(
+        name: name,
+        moodTag: mood,
+        durationMinutes: duration,
+      ),
+    );
+  }
+
   testWidgets('Welcome screen displays expected content', (
     WidgetTester tester,
   ) async {
@@ -70,7 +84,7 @@ void main() {
     expect(find.text('Study Summary'), findsOneWidget);
   });
 
-  testWidgets('Dashboard shows empty state when no presets exist', (
+  testWidgets('Dashboard shows empty state', (
     WidgetTester tester,
   ) async {
     await openDashboard(tester);
@@ -103,7 +117,7 @@ void main() {
     );
   });
 
-  testWidgets('New button opens the preset form', (
+  testWidgets('New button opens the create form', (
     WidgetTester tester,
   ) async {
     await openDashboard(tester);
@@ -115,7 +129,7 @@ void main() {
     expect(find.text('Preset Name'), findsOneWidget);
   });
 
-  testWidgets('Preset form rejects an empty name', (
+  testWidgets('Create form rejects an empty name', (
     WidgetTester tester,
   ) async {
     await openDashboard(tester);
@@ -128,6 +142,34 @@ void main() {
 
     expect(
       find.text('Please enter a preset name'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Create form rejects duration above 180', (
+    WidgetTester tester,
+  ) async {
+    await openDashboard(tester);
+
+    await tester.tap(find.text('New'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Algorithms Practice',
+    );
+
+    await tester.enterText(
+      find.byType(TextFormField).last,
+      '200',
+    );
+
+    await tester.ensureVisible(find.text('Save Preset'));
+    await tester.tap(find.text('Save Preset'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Enter a duration between 1 and 180'),
       findsOneWidget,
     );
   });
@@ -153,8 +195,9 @@ void main() {
       findsOneWidget,
     );
 
+    expect(find.text('Mood: Focused'), findsOneWidget);
     expect(
-      find.text('Mood: Focused | Duration: 25 minutes'),
+      find.text('Duration: 25 minutes'),
       findsOneWidget,
     );
 
@@ -162,18 +205,110 @@ void main() {
         await dependencies.presetRepository.getAllPresets();
 
     expect(presets.length, 1);
-    expect(presets.first.name, 'Algorithms Practice');
+  });
+
+  testWidgets('Edit opens the form with existing values', (
+    WidgetTester tester,
+  ) async {
+    await addTestPreset();
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Preset'), findsOneWidget);
+
+    final nameField = tester.widget<TextFormField>(
+      find.byType(TextFormField).first,
+    );
+
+    final durationField = tester.widget<TextFormField>(
+      find.byType(TextFormField).last,
+    );
+
+    expect(
+      nameField.controller!.text,
+      'Algorithms Practice',
+    );
+
+    expect(durationField.controller!.text, '25');
+  });
+
+  testWidgets('Editing a preset updates SQLite and Dashboard', (
+    WidgetTester tester,
+  ) async {
+    final id = await addTestPreset();
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Advanced Algorithms',
+    );
+
+    await tester.enterText(
+      find.byType(TextFormField).last,
+      '45',
+    );
+
+    await tester.ensureVisible(find.text('Update Preset'));
+    await tester.tap(find.text('Update Preset'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Advanced Algorithms'),
+      findsOneWidget,
+    );
+
+    expect(
+      find.text('Duration: 45 minutes'),
+      findsOneWidget,
+    );
+
+    final updatedPreset =
+        await dependencies.presetRepository.getPresetById(id);
+
+    expect(updatedPreset!.name, 'Advanced Algorithms');
+    expect(updatedPreset.durationMinutes, 45);
+  });
+
+  testWidgets('Cancel editing keeps the original values', (
+    WidgetTester tester,
+  ) async {
+    final id = await addTestPreset();
+    await openDashboard(tester);
+
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Changed Name',
+    );
+
+    await tester.ensureVisible(find.text('Cancel'));
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    final preset =
+        await dependencies.presetRepository.getPresetById(id);
+
+    expect(preset!.name, 'Algorithms Practice');
+    expect(
+      find.text('Algorithms Practice'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Start opens the selected preset timer', (
     WidgetTester tester,
   ) async {
-    await dependencies.presetRepository.createPreset(
-      const FocusPreset(
-        name: 'Mobile Development',
-        moodTag: 'Motivated',
-        durationMinutes: 40,
-      ),
+    await addTestPreset(
+      name: 'Mobile Development',
+      mood: 'Motivated',
+      duration: 40,
     );
 
     await openDashboard(tester);

@@ -1,14 +1,20 @@
 
 import 'package:flutter/material.dart';
 
+import '../../domain/entities/focus_preset.dart';
 import '../../domain/usecases/create_focus_preset.dart';
+import '../../domain/usecases/update_focus_preset.dart';
 
 class PresetFormScreen extends StatefulWidget {
   final CreateFocusPreset createFocusPreset;
+  final UpdateFocusPreset updateFocusPreset;
+  final FocusPreset? preset;
 
   const PresetFormScreen({
     super.key,
     required this.createFocusPreset,
+    required this.updateFocusPreset,
+    this.preset,
   });
 
   @override
@@ -18,13 +24,29 @@ class PresetFormScreen extends StatefulWidget {
 
 class _PresetFormScreenState extends State<PresetFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _durationController = TextEditingController(
-    text: '25',
-  );
 
-  String _selectedMood = 'Focused';
+  late final TextEditingController _nameController;
+  late final TextEditingController _durationController;
+
+  late String _selectedMood;
   bool _isSaving = false;
+
+  bool get _isEditing => widget.preset != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _nameController = TextEditingController(
+      text: widget.preset?.name ?? '',
+    );
+
+    _durationController = TextEditingController(
+      text: widget.preset?.durationMinutes.toString() ?? '25',
+    );
+
+    _selectedMood = widget.preset?.moodTag ?? 'Focused';
+  }
 
   @override
   void dispose() {
@@ -34,7 +56,7 @@ class _PresetFormScreenState extends State<PresetFormScreen> {
   }
 
   Future<void> _savePreset() async {
-    if (!_formKey.currentState!.validate()) {
+    if (_isSaving || !_formKey.currentState!.validate()) {
       return;
     }
 
@@ -43,13 +65,29 @@ class _PresetFormScreenState extends State<PresetFormScreen> {
     });
 
     try {
-      await widget.createFocusPreset(
-        name: _nameController.text,
-        moodTag: _selectedMood,
-        durationMinutes: int.parse(
-          _durationController.text.trim(),
-        ),
+      final name = _nameController.text.trim();
+      final duration = int.parse(
+        _durationController.text.trim(),
       );
+
+      if (_isEditing) {
+        final updatedRows = await widget.updateFocusPreset(
+          id: widget.preset!.id!,
+          name: name,
+          moodTag: _selectedMood,
+          durationMinutes: duration,
+        );
+
+        if (updatedRows == 0) {
+          throw StateError('Preset could not be found.');
+        }
+      } else {
+        await widget.createFocusPreset(
+          name: name,
+          moodTag: _selectedMood,
+          durationMinutes: duration,
+        );
+      }
 
       if (!mounted) {
         return;
@@ -62,9 +100,11 @@ class _PresetFormScreenState extends State<PresetFormScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Unable to save preset. Please try again.',
+            _isEditing
+                ? 'Unable to update preset. Please try again.'
+                : 'Unable to save preset. Please try again.',
           ),
         ),
       );
@@ -81,7 +121,9 @@ class _PresetFormScreenState extends State<PresetFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Preset'),
+        title: Text(
+          _isEditing ? 'Edit Preset' : 'Create Preset',
+        ),
       ),
       body: Form(
         key: _formKey,
@@ -90,19 +132,28 @@ class _PresetFormScreenState extends State<PresetFormScreen> {
           children: [
             TextFormField(
               controller: _nameController,
+              enabled: !_isSaving,
+              maxLength: 50,
               decoration: const InputDecoration(
                 labelText: 'Preset Name',
+                hintText: 'e.g. Algorithms Practice',
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
-                if (value == null || value.trim().isEmpty) {
+                final name = value?.trim() ?? '';
+
+                if (name.isEmpty) {
                   return 'Please enter a preset name';
+                }
+
+                if (name.length > 50) {
+                  return 'Name cannot exceed 50 characters';
                 }
 
                 return null;
               },
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _selectedMood,
               decoration: const InputDecoration(
@@ -140,6 +191,7 @@ class _PresetFormScreenState extends State<PresetFormScreen> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Duration (minutes)',
+                hintText: 'Enter 1 to 180',
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
@@ -147,8 +199,10 @@ class _PresetFormScreenState extends State<PresetFormScreen> {
                   value?.trim() ?? '',
                 );
 
-                if (duration == null || duration <= 0) {
-                  return 'Enter a valid duration';
+                if (duration == null ||
+                    duration < 1 ||
+                    duration > 180) {
+                  return 'Enter a duration between 1 and 180';
                 }
 
                 return null;
@@ -165,7 +219,11 @@ class _PresetFormScreenState extends State<PresetFormScreen> {
                         strokeWidth: 2,
                       ),
                     )
-                  : const Text('Save Preset'),
+                  : Text(
+                      _isEditing
+                          ? 'Update Preset'
+                          : 'Save Preset',
+                    ),
             ),
             const SizedBox(height: 12),
             OutlinedButton(

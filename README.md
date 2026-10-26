@@ -17,32 +17,29 @@ Isaac Owusu
 
 The application is designed to work offline.
 
-Students can create focus presets and view them
-on the Dashboard. Additional features will include
-focus timers, study history, statistics, and
-personalized study recommendations.
+Students can create and edit focus presets, view
+saved presets on the Dashboard, and open the timer
+with a selected preset.
 
 SQLite stores focus presets and session logs.
 SharedPreferences will store application settings.
 
-## Features
-
-### Implemented
+## Implemented Features
 
 - Welcome screen
-- Dashboard navigation
-- History and Settings screen layouts
+- Dashboard, History, and Settings navigation
 - SQLite database schema
 - Focus preset repository CRUD operations
-- Create focus preset form
+- Create focus presets
+- Edit existing focus presets
 - Form validation
-- Save presets to SQLite
-- Load saved presets on the Dashboard
-- Open the timer screen with a selected preset
+- Persistent SQLite storage
+- Display saved presets on the Dashboard
+- Open the timer with a selected preset
 
-### Planned
+## Planned Features
 
-- Edit and delete presets from the UI
+- Delete presets from the UI
 - Filter presets by mood
 - Functional countdown timer
 - Session history and statistics
@@ -80,13 +77,39 @@ Tables:
 - focus_presets
 - session_logs
 
-Focus presets contain a name, mood tag, and
+Focus presets store a name, mood tag, and
 planned duration.
 
-Session logs contain a related preset ID, date,
+Session logs store a related preset ID, date,
 completed duration, status, and notes.
 
 Deleting a preset also deletes its related logs.
+
+## Preset Management
+
+### Creating a Preset
+
+1. Open the Dashboard.
+2. Tap New.
+3. Enter a preset name, mood, and duration.
+4. Tap Save Preset.
+
+### Editing a Preset
+
+1. Open the Dashboard.
+2. Tap Edit on an existing preset.
+3. Change the name, mood, or duration.
+4. Tap Update Preset.
+
+The application updates the existing SQLite
+record and refreshes the Dashboard.
+
+### Validation
+
+Preset names cannot be blank or exceed
+50 characters.
+
+Durations must be between 1 and 180 minutes.
 
 ## Current Progress
 
@@ -97,21 +120,20 @@ Initialized the Flutter project.
 Introduced clean architecture and domain components.
 
 ### Commit 3
-Created the five main screens and navigation.
+Created the main screens and navigation.
 
 ### Commit 4
 Implemented SQLite database schema and models.
 
 ### Commit 5
-Implemented repository CRUD operations and
-the CreateFocusPreset use case.
+Implemented repository CRUD operations.
 
 ### Commit 6
-Connected the Dashboard and Create Preset form
-to SQLite.
+Connected the Dashboard and preset creation to SQLite.
 
-Users can now save presets, view saved presets,
-and open the timer with a selected preset.
+### Commit 7
+Added preset editing, reusable create/edit form,
+improved validation, and tests.
 
 ## Running the Application
 
@@ -133,7 +155,11 @@ Run widget tests:
 
     flutter test test/widget_test.dart
 
-Run static analysis:
+Run update use case tests:
+
+    flutter test test/features/focus/domain/update_focus_preset_test.dart
+
+Check for code issues:
 
     flutter analyze
 

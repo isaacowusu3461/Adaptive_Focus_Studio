@@ -39,13 +39,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  Future<void> _openPresetForm() async {
+  Future<void> _openPresetForm({FocusPreset? preset}) async {
     final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => PresetFormScreen(
           createFocusPreset:
               widget.dependencies.createFocusPreset,
+          updateFocusPreset:
+              widget.dependencies.updateFocusPreset,
+          preset: preset,
         ),
       ),
     );
@@ -104,15 +107,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       children: presets.map((preset) {
         return Card(
-          child: ListTile(
-            title: Text(preset.name),
-            subtitle: Text(
-              'Mood: ${preset.moodTag} | '
-              'Duration: ${preset.durationMinutes} minutes',
-            ),
-            trailing: ElevatedButton(
-              onPressed: () => _startPreset(preset),
-              child: const Text('Start'),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  preset.name,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Mood: ${preset.moodTag}',
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Duration: ${preset.durationMinutes} minutes',
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _openPresetForm(preset: preset);
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Edit'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _startPreset(preset);
+                      },
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Start'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         );
@@ -164,7 +200,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: _openPresetForm,
+                onPressed: () => _openPresetForm(),
                 icon: const Icon(Icons.add),
                 label: const Text('New'),
               ),

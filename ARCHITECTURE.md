@@ -18,16 +18,16 @@ Contains screens, widgets, and UI state.
 Current screens:
 - Welcome
 - Dashboard
-- Create Preset
+- Create/Edit Preset
 - Focus Timer
 - History & Insights
 - Settings
 
-The Dashboard retrieves saved presets through
-the FocusPresetRepository interface.
+The Dashboard retrieves presets through
+FocusPresetRepository.
 
-The Create Preset screen saves data using the
-CreateFocusPreset use case.
+The PresetFormScreen supports both creating
+and editing presets.
 
 ### Domain Layer
 
@@ -38,11 +38,17 @@ Entities:
 - FocusPreset
 - SessionLog
 
-Repository interface:
+Repository:
 - FocusPresetRepository
 
-Use case:
+Use cases:
 - CreateFocusPreset
+- UpdateFocusPreset
+
+CreateFocusPreset handles new preset creation.
+
+UpdateFocusPreset validates changes and
+updates existing presets through the repository.
 
 The domain layer does not depend on SQLite
 or Flutter UI components.
@@ -59,15 +65,16 @@ Components:
 - FocusPresetRepositoryImpl
 
 The repository converts SQLite records into
-domain objects.
+domain objects and provides CRUD operations.
 
 ## Dependency Direction
 
 Presentation -> Domain <- Data
 
-The domain layer defines the repository contract.
+The domain layer defines repository contracts.
 
-The data layer implements that contract using SQLite.
+The data layer implements those contracts
+using SQLite.
 
 ## Dependency Injection
 
@@ -75,15 +82,13 @@ FocusDependencies creates and shares:
 - DatabaseHelper
 - FocusPresetRepositoryImpl
 - CreateFocusPreset
+- UpdateFocusPreset
 
 Dependencies are passed to screens through
 constructors.
 
-This avoids creating separate database helpers
-inside each screen and makes widget tests easier.
-
-Riverpod will replace this initial dependency
-container in a later commit.
+Riverpod will be introduced later for
+application-wide state management.
 
 ## SQLite Database
 
@@ -118,34 +123,56 @@ The session_logs table references focus_presets.
 Foreign keys are enabled, and deleting a preset
 automatically deletes related session logs.
 
-## Dashboard Data Flow
-
-1. The Dashboard opens.
-2. It calls FocusPresetRepository.getAllPresets().
-3. The repository queries SQLite.
-4. Database rows are converted into FocusPreset
-   domain objects.
-5. FutureBuilder displays the saved presets.
-
 ## Create Preset Data Flow
 
-1. The user opens the Create Preset screen.
+1. The user opens the Create Preset form.
 2. The user enters a name, mood, and duration.
 3. The form validates the input.
-4. CreateFocusPreset validates and normalizes it.
-5. The repository inserts the preset into SQLite.
+4. CreateFocusPreset prepares the entity.
+5. The repository inserts it into SQLite.
 6. The form returns a successful result.
 7. The Dashboard reloads the saved presets.
 
+## Edit Preset Data Flow
+
+1. The user taps Edit on a saved preset.
+2. The form receives the existing FocusPreset.
+3. The fields are populated with saved values.
+4. The user modifies the values.
+5. The form validates the changes.
+6. UpdateFocusPreset validates and normalizes
+   the input.
+7. The repository updates the SQLite record
+   using its ID.
+8. The Dashboard refreshes after a successful
+   update.
+
+## Form Validation
+
+Preset names must contain non-whitespace text
+and cannot exceed 50 characters.
+
+Durations must be between 1 and 180 minutes.
+
+The update use case also validates the preset ID.
+
+These rules are enforced in the edit use case
+and presentation form.
+
 ## Testing
 
-Unit tests verify domain and repository logic.
+Domain tests verify entity behavior,
+input validation, and use case logic.
 
-Database tests use sqflite_common_ffi and
-an in-memory SQLite database.
+Database tests verify CRUD operations,
+foreign-key relationships, and cascade deletion.
 
 Widget tests verify navigation, form validation,
-preset creation, and Dashboard updates.
+preset creation, preset editing, cancellation,
+and Dashboard updates.
+
+SQLite tests use sqflite_common_ffi with
+an in-memory database.
 
 ## Current Implementation
 
@@ -165,13 +192,15 @@ SQLite database schema and models.
 Focus preset repository CRUD operations.
 
 ### Commit 6
-Dashboard integration with SQLite and
-persistent preset creation.
+Dashboard integration with SQLite.
+
+### Commit 7
+Preset editing, reusable form, improved
+validation, and tests.
 
 ## Future Improvements
 
-- Preset editing and deletion from the UI
-- Mood filtering
+- Preset deletion and mood filtering
 - Timer lifecycle and session recording
 - Session history and statistics
 - Riverpod state management
