@@ -1,11 +1,13 @@
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/focus/presentation/providers/focus_dependencies.dart';
+import 'features/focus/presentation/providers/focus_providers.dart';
 import 'features/focus/presentation/screens/welcome_screen.dart';
 
-class AdaptiveFocusStudioApp extends StatefulWidget {
+class AdaptiveFocusStudioApp extends StatelessWidget {
   final FocusDependencies? dependencies;
 
   const AdaptiveFocusStudioApp({
@@ -14,28 +16,22 @@ class AdaptiveFocusStudioApp extends StatefulWidget {
   });
 
   @override
-  State<AdaptiveFocusStudioApp> createState() =>
-      _AdaptiveFocusStudioAppState();
-}
-
-class _AdaptiveFocusStudioAppState
-    extends State<AdaptiveFocusStudioApp> {
-  late final FocusDependencies _dependencies;
-
-  @override
-  void initState() {
-    super.initState();
-    _dependencies = widget.dependencies ?? FocusDependencies();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Adaptive Focus Studio',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      home: WelcomeScreen(
-        dependencies: _dependencies,
+    final focusDependencies = dependencies ?? FocusDependencies();
+
+    return ProviderScope(
+      overrides: [
+        focusDependenciesProvider.overrideWithValue(
+          focusDependencies,
+        ),
+      ],
+      child: MaterialApp(
+        title: 'Adaptive Focus Studio',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        home: WelcomeScreen(
+          dependencies: focusDependencies,
+        ),
       ),
     );
   }

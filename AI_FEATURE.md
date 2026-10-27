@@ -1,291 +1,278 @@
 
-# AI Feature - Session Scout
+# Adaptive Focus Studio - Architecture
 
-## 1. Overview
+## Overview
 
-Session Scout is the intelligent recommendation
-feature in Adaptive Focus Studio.
+Adaptive Focus Studio uses clean architecture
+to separate the user interface, business logic,
+and persistent data storage.
 
-It suggests a study duration based on a student's
-previously completed focus sessions.
+The application works offline.
 
-The goal is to provide a more personalized
-recommendation than using the same fixed duration
-for every session.
+## Architecture Layers
 
-Session Scout is a rule-based recommendation
-algorithm. It does not use a trained machine
-learning model or a generative AI service.
+### Presentation
 
-## 2. Problem
+The presentation layer contains:
+- Welcome screen
+- Dashboard
+- Create/Edit Preset
+- Focus Timer
+- History & Insights
+- Settings
+- Riverpod providers
 
-Students may prefer different study durations
-depending on their mood and previous study habits.
+### Domain
 
-A fixed 25-minute duration does not adapt to
-these differences.
+The domain layer contains:
+- FocusPreset
+- SessionLog
+- SessionScoutRecommendation
+- SessionScoutEvaluationCase
+- SessionScoutEvaluationResult
+- Repository interfaces
+- Use cases
 
-Session Scout attempts to address this by using
-recent completed study sessions to recommend
-a suitable duration.
+### Data
 
-## 3. Inputs
+The data layer contains:
+- DatabaseHelper
+- FocusPresetModel
+- SessionLogModel
+- FocusPresetRepositoryImpl
+- SessionLogRepositoryImpl
 
-The algorithm uses:
+## Dependency Direction
 
-- Selected mood
-- Saved focus presets
-- Completed study sessions
-- Completed duration in seconds
-- Session date
+Presentation -> Domain <- Data
 
-Supported moods:
+The domain layer does not depend on Flutter
+widgets or SQLite implementations.
 
-- Focused
-- Relaxed
-- Motivated
+The data layer implements repository interfaces
+defined in the domain layer.
 
-Partial sessions are excluded from the
-recommendation calculation.
+## Riverpod Dependency Injection
 
-## 4. Recommendation Algorithm
+FocusDependencies constructs the existing
+repositories and use cases.
 
-The algorithm performs these steps:
+The application creates a ProviderScope
+and overrides focusDependenciesProvider
+with its dependency instance.
 
-1. Retrieve saved focus presets and session logs.
-2. Find presets matching the selected mood.
-3. Select completed sessions linked to those presets.
-4. Sort the matching sessions from newest to oldest.
-5. Select the three most recent completed sessions.
-6. Calculate the median completed duration.
-7. Round the median to the nearest whole minute.
-8. Limit the recommendation to 10-60 minutes.
-9. Return the suggested duration and explanation.
+Repository providers expose:
+- FocusPresetRepository
+- SessionLogRepository
 
-If fewer than three matching completed sessions
-exist, Session Scout recommends 25 minutes.
+Use case providers expose:
+- CreateFocusPreset
+- UpdateFocusPreset
+- DeleteFocusPreset
+- SaveSessionLog
+- GetSessionScoutRecommendation
 
-## 5. Why Median?
+## Asynchronous Data Providers
 
-I chose the median because it is less affected
-by unusually short or long sessions than
-the arithmetic mean.
+### focusPresetsProvider
 
-For example, consider these durations:
+Loads saved focus presets through
+FocusPresetRepository.
 
-20, 25, 90 minutes
+### sessionHistoryProvider
 
-Mean:
+Loads session logs through
+SessionLogRepository.
 
-45 minutes
+### sessionScoutProvider
 
-Median:
+A FutureProvider.family that accepts a mood tag.
 
-25 minutes
+It calls GetSessionScoutRecommendation and
+returns a SessionScoutRecommendation.
 
-The median is less influenced by the unusually
-long 90-minute session.
+It watches the preset and session history
+providers so changes to their data can
+invalidate recommendations.
 
-## 6. Baseline
+## UI Integration
 
-The baseline always recommends 25 minutes.
+### Dashboard
 
-It does not use mood or session history.
+DashboardScreen extends ConsumerStatefulWidget.
 
-Baseline prediction:
+It watches:
+- focusPresetsProvider
+- sessionHistoryProvider
+- sessionScoutProvider
 
-25 minutes
+Preset creation, editing, deletion, and
+recommendation application invalidate
+the appropriate providers.
 
-## 7. Evaluation Method
+### History
 
-I compared Session Scout against the fixed
-25-minute baseline using six synthetic test cases.
+HistoryScreen extends ConsumerStatefulWidget.
 
-Five cases contain three historical completed
-session durations.
+It watches sessionHistoryProvider.
 
-One case tests the fallback when no completed
-session history is available.
+Adding, editing, or deleting session logs
+invalidates sessionHistoryProvider.
 
-For each case:
+### Navigation
 
-1. Generate a Session Scout recommendation.
-2. Generate the fixed baseline prediction.
-3. Compare both predictions with the actual
-   duration assigned to the case.
-4. Calculate the absolute error.
-5. Calculate mean absolute error across all cases.
+MainScreen extends ConsumerStatefulWidget.
 
-The actual duration represents a subsequent
-session being predicted. It is not included
-in the historical input durations.
+It invalidates providers when switching
+between Dashboard and History.
 
-## 8. Evaluation Cases
+The existing navigation structure is retained.
 
-All durations are in minutes.
+## SQLite Storage
 
-| Case | Historical Durations | Actual | Scout | Baseline |
-|------|----------------------|--------|-------|----------|
-| 1 | 20, 25, 30 | 28 | 25 | 25 |
-| 2 | 30, 35, 40 | 38 | 35 | 25 |
-| 3 | 40, 45, 50 | 47 | 45 | 25 |
-| 4 | 10, 15, 20 | 18 | 15 | 25 |
-| 5 | 50, 55, 60 | 58 | 55 | 25 |
-| 6 | No history | 25 | 25 | 25 |
+Tables:
+- focus_presets
+- session_logs
 
-## 9. Error Calculation
+focus_presets:
+- id
+- name
+- mood_tag
+- duration_minutes
 
-Absolute Error:
+session_logs:
+- id
+- preset_id
+- date
+- completed_seconds
+- status
+- notes
 
-Absolute Error = |Prediction - Actual|
+Foreign keys are enabled.
 
-Mean Absolute Error:
+Deleting a preset cascades to its
+related session logs.
 
-MAE = Sum of Absolute Errors / Number of Cases
+## Focus Timer
 
-A smaller MAE indicates predictions closer
-to the actual durations.
+The timer supports:
+- Ready
+- Running
+- Paused
+- Finished
 
-## 10. Evaluation Results
+It uses Stopwatch for elapsed time
+and Timer.periodic for display updates.
 
-| Case | Scout Error | Baseline Error |
-|------|-------------|----------------|
-| 1 | 3 | 3 |
-| 2 | 3 | 13 |
-| 3 | 2 | 22 |
-| 4 | 3 | 7 |
-| 5 | 3 | 33 |
-| 6 | 0 | 0 |
+Completed and partial sessions are saved
+through SaveSessionLog.
 
-Session Scout total absolute error:
+## Settings
 
-14 minutes
+SharedPreferences stores:
+- default_focus_duration
+- reminders_enabled
+- reduce_motion
+- sound_enabled
 
-Baseline total absolute error:
-
-78 minutes
-
-Number of cases:
-
-6
-
-Session Scout MAE:
-
-14 / 6 = 2.33 minutes
-
-Baseline MAE:
-
-78 / 6 = 13.00 minutes
-
-Relative MAE reduction:
-
-(13.00 - 2.33) / 13.00 * 100
-
-Approximately 82.05%
-
-## 11. Interpretation
-
-On these six synthetic examples, Session Scout
-produced predictions closer to the target
-durations than the fixed baseline.
-
-However, these results do not establish that
-Session Scout performs better in real use.
-
-The test cases were constructed so that the
-subsequent target durations are generally
-close to their historical medians.
-
-This makes them useful for checking the
-implementation, but they are not an unbiased
-sample of actual study behavior.
-
-## 12. Limitations
-
-### Limited history
-
-The algorithm requires three completed sessions
-for a personalized recommendation.
-
-Otherwise, it uses the fixed 25-minute fallback.
-
-### No trained model
+## Session Scout
 
 Session Scout is a deterministic,
-median-based recommendation system.
+median-based recommendation algorithm.
 
-It does not learn parameters or train a
-machine learning model.
+It uses:
+- Selected mood
+- Completed sessions
+- Three most recent matching durations
 
-### Mood association
+It calculates the median, rounds to the
+nearest minute, and clamps the result
+between 10 and 60 minutes.
 
-Session mood is determined by the preset
-currently linked to each session.
+If there are fewer than three matching
+completed sessions, it returns 25 minutes.
 
-Editing a preset's mood may change how
-previous sessions are grouped.
+The user can apply a recommendation
+to an existing focus preset.
 
-### Synthetic evaluation
+## Evaluation
 
-The evaluation cases are synthetic.
+EvaluateSessionScout compares the
+recommendation against a fixed
+25-minute baseline.
 
-The measured improvement may not generalize
-to real student sessions.
+Metrics:
+- Absolute error
+- Mean absolute error
+- Relative MAE reduction
 
-### Prediction versus effectiveness
+Six synthetic evaluation cases are
+documented in AI_FEATURE.md.
 
-The evaluation measures prediction error,
-not whether the recommended duration improves
-concentration, productivity, or study outcomes.
+The synthetic results demonstrate
+the calculation but do not prove
+real-world predictive superiority.
 
-## 13. Possible Improvements
+## Testing
 
-Future improvements could include:
+### Unit Tests
 
-- Evaluation on real historical study sessions
-- Chronological holdout testing
-- Comparing against additional baselines
-- Tracking prediction accuracy over time
-- Incorporating time of day
-- Incorporating subject or task difficulty
-- Using more historical sessions
-- Allowing users to rate recommendations
+- Focus preset use cases
+- Session logging
+- Session Scout median calculation
+- Session Scout evaluation
 
-## 14. Implementation Files
+### Database Tests
 
-Recommendation algorithm:
+- SQLite CRUD
+- Foreign-key cascade behavior
+- Session history
+- Mood-based recommendation filtering
 
-lib/features/focus/domain/usecases/
-calculate_session_scout.dart
+### Widget Tests
 
-Repository-connected recommendation:
+- Preset management
+- Timer interactions
+- History
+- Settings
+- Session Scout interface
 
-lib/features/focus/domain/usecases/
-get_session_scout_recommendation.dart
+### Riverpod Tests
 
-Evaluation implementation:
+- Dependency provider overrides
+- Repository providers
+- Use case providers
+- Preset loading
+- Session loading
+- Provider invalidation
+- Session Scout recommendations
 
-lib/features/focus/domain/usecases/
-evaluate_session_scout.dart
+## Development Progress
 
-Evaluation tests:
+Commits 1-8:
+Project foundation and preset management.
 
-test/features/focus/domain/
-evaluate_session_scout_test.dart
+Commit 9:
+Timer, history, statistics, settings.
 
-## 15. Conclusion
+Commit 10:
+Session Scout algorithm.
 
-Session Scout provides a simple, explainable
-way to personalize study-duration suggestions.
+Commit 11:
+Session Scout Dashboard integration.
 
-The evaluation implementation allows the
-recommendation algorithm to be compared
-consistently against a fixed baseline.
+Commit 12:
+Session Scout evaluation.
 
-The six synthetic cases demonstrate the
-calculation and evaluation process.
+Commit 13:
+Riverpod state management and dependency injection.
 
-A real-world study using held-out session
-records would be necessary to determine
-whether Session Scout offers a meaningful
-predictive advantage.
+## Planned Work
+
+- Animations and responsive layouts
+- Background statistics processing using isolates
+- Local notifications
+- JSON import/export
+- Additional automated tests
+- Integration tests
+- Coverage and final documentation

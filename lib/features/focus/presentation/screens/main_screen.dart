@@ -1,20 +1,27 @@
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/focus_dependencies.dart';
+import '../providers/focus_providers.dart';
 import 'dashboard_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 
-class MainScreen extends StatefulWidget {
+class MainScreen extends ConsumerStatefulWidget {
   final FocusDependencies dependencies;
 
-  const MainScreen({super.key, required this.dependencies});
+  const MainScreen({
+    super.key,
+    required this.dependencies,
+  });
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  ConsumerState<MainScreen> createState() =>
+      _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends ConsumerState<MainScreen> {
   int _selectedIndex = 0;
 
   final GlobalKey<DashboardScreenState> _dashboardKey =
@@ -30,8 +37,14 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
 
     _screens = [
-      DashboardScreen(key: _dashboardKey, dependencies: widget.dependencies),
-      HistoryScreen(key: _historyKey, dependencies: widget.dependencies),
+      DashboardScreen(
+        key: _dashboardKey,
+        dependencies: widget.dependencies,
+      ),
+      HistoryScreen(
+        key: _historyKey,
+        dependencies: widget.dependencies,
+      ),
       const SettingsScreen(),
     ];
   }
@@ -42,10 +55,13 @@ class _MainScreenState extends State<MainScreen> {
     });
 
     if (index == 0) {
+      ref.invalidate(focusPresetsProvider);
+      ref.invalidate(sessionHistoryProvider);
       _dashboardKey.currentState?.reload();
     }
 
     if (index == 1) {
+      ref.invalidate(sessionHistoryProvider);
       _historyKey.currentState?.reload();
     }
   }
@@ -53,7 +69,10 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _screens),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onItemTapped,

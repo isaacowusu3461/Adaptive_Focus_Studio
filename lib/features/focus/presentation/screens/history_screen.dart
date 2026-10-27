@@ -1,38 +1,44 @@
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../domain/entities/session_log.dart';
 import '../providers/focus_dependencies.dart';
+import '../providers/focus_providers.dart';
 
-class HistoryScreen extends StatefulWidget {
+class HistoryScreen extends ConsumerStatefulWidget {
   final FocusDependencies dependencies;
 
-  const HistoryScreen({super.key, required this.dependencies});
+  const HistoryScreen({
+    super.key,
+    required this.dependencies,
+  });
 
   @override
-  State<HistoryScreen> createState() => HistoryScreenState();
+  ConsumerState<HistoryScreen> createState() =>
+      HistoryScreenState();
 }
 
-class HistoryScreenState extends State<HistoryScreen> {
-  late Future<List<SessionLog>> _sessionsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _refresh();
-  }
-
-  void _refresh() {
-    _sessionsFuture = widget.dependencies.sessionRepository.getAllSessions();
-  }
-
-  Future<void> reload() async {
-    setState(_refresh);
-    await _sessionsFuture;
+class HistoryScreenState extends ConsumerState<HistoryScreen> {
+  void reload() {
+    ref.invalidate(sessionHistoryProvider);
   }
 
   Future<void> _showSessionForm({SessionLog? session}) async {
-    final presets = await widget.dependencies.presetRepository.getAllPresets();
+    List<dynamic> presets;
+
+    try {
+      presets =
+          await ref.read(focusPresetRepositoryProvider).getAllPresets();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load presets.')),
+        );
+      }
+      return;
+    }
 
     if (!mounted) return;
 
@@ -45,9 +51,10 @@ class HistoryScreenState extends State<HistoryScreen> {
 
     final presetIds = presets.map((p) => p.id).toSet();
 
-    int selectedId = session != null && presetIds.contains(session.presetId)
-        ? session.presetId
-        : presets.first.id!;
+    int selectedId =
+        session != null && presetIds.contains(session.presetId)
+            ? session.presetId
+            : presets.first.id as int;
 
     final durationController = TextEditingController(
       text: session == null
@@ -55,10 +62,12 @@ class HistoryScreenState extends State<HistoryScreen> {
           : (session.completedSeconds / 60).toStringAsFixed(1),
     );
 
-    final notesController = TextEditingController(text: session?.notes ?? '');
+    final notesController = TextEditingController(
+      text: session?.notes ?? '',
+    );
 
-    String status = session?.status ?? 'completed';
     final formKey = GlobalKey<FormState>();
+    String status = session?.status ?? 'completed';
     bool saving = false;
 
     try {
@@ -69,7 +78,9 @@ class HistoryScreenState extends State<HistoryScreen> {
             builder: (context, setDialogState) {
               return AlertDialog(
                 title: Text(
-                  session == null ? 'Add Session Log' : 'Edit Session Log',
+                  session == null
+                      ? 'Add Session Log'
+                      : 'Edit Session Log',
                 ),
                 content: SizedBox(
                   width: 350,
@@ -85,9 +96,9 @@ class HistoryScreenState extends State<HistoryScreen> {
                               labelText: 'Focus Preset',
                             ),
                             items: presets.map((preset) {
-                              return DropdownMenuItem(
-                                value: preset.id!,
-                                child: Text(preset.name),
+                              return DropdownMenuItem<int>(
+                                value: preset.id as int,
+                                child: Text(preset.name as String),
                               );
                             }).toList(),
                             onChanged: saving
@@ -103,22 +114,24 @@ class HistoryScreenState extends State<HistoryScreen> {
                           TextFormField(
                             controller: durationController,
                             enabled: !saving,
-                            keyboardType: const TextInputType.numberWithOptions(
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
                             decoration: const InputDecoration(
                               labelText: 'Completed Minutes',
                             ),
                             validator: (value) {
-                              final minutes = double.tryParse(value ?? '');
+                              final minutes =
+                                  double.tryParse(value ?? '');
 
                               if (minutes == null ||
                                   !minutes.isFinite ||
                                   minutes <= 0 ||
-                                  minutes > 180) {
+                                  minutes > 180 ||
+                                  (minutes * 60).round() == 0) {
                                 return 'Enter a duration above 0 and up to 180';
                               }
-
                               return null;
                             },
                           ),
@@ -141,9 +154,7 @@ class HistoryScreenState extends State<HistoryScreen> {
                                 ? null
                                 : (value) {
                                     if (value != null) {
-                                      setDialogState(() {
-                                        status = value;
-                                      });
+                                      setDialogState(() => status = value);
                                     }
                                   },
                           ),
@@ -175,17 +186,17 @@ class HistoryScreenState extends State<HistoryScreen> {
                               return;
                             }
 
-                            setDialogState(() {
-                              saving = true;
-                            });
+                            setDialogState(() => saving = true);
 
                             try {
-                              final seconds =
-                                  (double.parse(durationController.text) * 60)
-                                      .round();
+                              final seconds = (double.parse(
+                                        durationController.text,
+                                      ) *
+                                      60)
+                                  .round();
 
                               if (session == null) {
-                                await widget.dependencies.saveSessionLog(
+                                await ref.read(saveSessionLogProvider)(
                                   presetId: selectedId,
                                   date: DateTime.now(),
                                   completedSeconds: seconds,
@@ -193,17 +204,18 @@ class HistoryScreenState extends State<HistoryScreen> {
                                   notes: notesController.text,
                                 );
                               } else {
-                                await widget.dependencies.sessionRepository
+                                await ref
+                                    .read(sessionLogRepositoryProvider)
                                     .updateSession(
-                                      SessionLog(
-                                        id: session.id,
-                                        presetId: selectedId,
-                                        date: session.date,
-                                        completedSeconds: seconds,
-                                        status: status,
-                                        notes: notesController.text.trim(),
-                                      ),
-                                    );
+                                  SessionLog(
+                                    id: session.id,
+                                    presetId: selectedId,
+                                    date: session.date,
+                                    completedSeconds: seconds,
+                                    status: status,
+                                    notes: notesController.text.trim(),
+                                  ),
+                                );
                               }
 
                               if (dialogContext.mounted) {
@@ -211,21 +223,21 @@ class HistoryScreenState extends State<HistoryScreen> {
                               }
                             } catch (_) {
                               if (dialogContext.mounted) {
-                                ScaffoldMessenger.of(
-                                  dialogContext,
-                                ).showSnackBar(
+                                ScaffoldMessenger.of(dialogContext)
+                                    .showSnackBar(
                                   const SnackBar(
-                                    content: Text('Unable to save session.'),
+                                    content: Text(
+                                      'Unable to save session.',
+                                    ),
                                   ),
                                 );
-
-                                setDialogState(() {
-                                  saving = false;
-                                });
+                                setDialogState(() => saving = false);
                               }
                             }
                           },
-                    child: Text(session == null ? 'Add' : 'Save Changes'),
+                    child: Text(
+                      session == null ? 'Add' : 'Save Changes',
+                    ),
                   ),
                 ],
               );
@@ -235,7 +247,7 @@ class HistoryScreenState extends State<HistoryScreen> {
       );
 
       if (saved == true && mounted) {
-        await reload();
+        ref.invalidate(sessionHistoryProvider);
       }
     } finally {
       durationController.dispose();
@@ -246,60 +258,57 @@ class HistoryScreenState extends State<HistoryScreen> {
   Future<void> _deleteSession(SessionLog session) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Delete Session?'),
-          content: const Text('This session log will be permanently deleted.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Session?'),
+        content: const Text(
+          'This session log will be permanently deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
 
-    if (confirmed != true || !mounted) {
-      return;
-    }
+    if (confirmed != true || !mounted) return;
 
     try {
-      await widget.dependencies.sessionRepository.deleteSession(session.id!);
+      await ref
+          .read(sessionLogRepositoryProvider)
+          .deleteSession(session.id!);
 
       if (mounted) {
-        await reload();
+        ref.invalidate(sessionHistoryProvider);
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to delete session.')),
+          const SnackBar(
+            content: Text('Unable to delete session.'),
+          ),
         );
       }
     }
   }
 
   Widget _buildSummary(List<SessionLog> sessions) {
-    final completed = sessions
-        .where((session) => session.status == 'completed')
-        .toList();
+    final completed =
+        sessions.where((s) => s.status == 'completed').length;
 
     final totalSeconds = sessions.fold<int>(
       0,
       (sum, session) => sum + session.completedSeconds,
     );
 
-    final averageSeconds = sessions.isEmpty
+    final average = sessions.isEmpty
         ? 0.0
-        : totalSeconds / sessions.length;
+        : totalSeconds / sessions.length / 60;
 
     return Card(
       child: Padding(
@@ -307,7 +316,7 @@ class HistoryScreenState extends State<HistoryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Completed Sessions: ${completed.length}'),
+            Text('Completed Sessions: $completed'),
             const SizedBox(height: 8),
             Text(
               'Total Study Time: '
@@ -316,7 +325,7 @@ class HistoryScreenState extends State<HistoryScreen> {
             const SizedBox(height: 8),
             Text(
               'Average Duration: '
-              '${(averageSeconds / 60).toStringAsFixed(1)} minutes',
+              '${average.toStringAsFixed(1)} minutes',
             ),
           ],
         ),
@@ -336,7 +345,8 @@ class HistoryScreenState extends State<HistoryScreen> {
 
     return Column(
       children: sessions.map((session) {
-        final date = DateFormat('MMM d, yyyy - h:mm a').format(session.date);
+        final date =
+            DateFormat('MMM d, yyyy - h:mm a').format(session.date);
 
         return Card(
           key: ValueKey('session_${session.id}'),
@@ -345,7 +355,12 @@ class HistoryScreenState extends State<HistoryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(date, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  date,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'Duration: '
@@ -354,21 +369,19 @@ class HistoryScreenState extends State<HistoryScreen> {
                 ),
                 Text('Status: ${session.status}'),
                 Text('Preset ID: ${session.presetId}'),
-                if (session.notes.isNotEmpty) Text('Notes: ${session.notes}'),
+                if (session.notes.isNotEmpty)
+                  Text('Notes: ${session.notes}'),
                 Wrap(
                   spacing: 8,
                   children: [
                     TextButton.icon(
-                      onPressed: () {
-                        _showSessionForm(session: session);
-                      },
+                      onPressed: () =>
+                          _showSessionForm(session: session),
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Edit'),
                     ),
                     TextButton.icon(
-                      onPressed: () {
-                        _deleteSession(session);
-                      },
+                      onPressed: () => _deleteSession(session),
                       icon: const Icon(Icons.delete_outline),
                       label: const Text('Delete'),
                     ),
@@ -384,63 +397,62 @@ class HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final history = ref.watch(sessionHistoryProvider);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('History & Insights')),
-      body: FutureBuilder<List<SessionLog>>(
-        future: _sessionsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: ElevatedButton(
-                onPressed: reload,
-                child: const Text('Retry Loading History'),
+      appBar: AppBar(
+        title: const Text('History & Insights'),
+      ),
+      body: history.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(),
+        ),
+        error: (error, stackTrace) => Center(
+          child: ElevatedButton(
+            onPressed: reload,
+            child: const Text('Retry Loading History'),
+          ),
+        ),
+        data: (sessions) => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text(
+              'Study Summary',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
-            );
-          }
-
-          final sessions = snapshot.data ?? [];
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const Text(
-                'Study Summary',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              _buildSummary(sessions),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Recent Sessions',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            _buildSummary(sessions),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Recent Sessions',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                  IconButton(
-                    tooltip: 'Refresh History',
-                    onPressed: reload,
-                    icon: const Icon(Icons.refresh),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _buildSessionList(sessions),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () {
-                  _showSessionForm();
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Add Manual Log'),
-              ),
-            ],
-          );
-        },
+                ),
+                IconButton(
+                  tooltip: 'Refresh History',
+                  onPressed: reload,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildSessionList(sessions),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => _showSessionForm(),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Manual Log'),
+            ),
+          ],
+        ),
       ),
     );
   }

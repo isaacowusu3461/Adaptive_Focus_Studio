@@ -1,14 +1,16 @@
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/focus_preset.dart';
 import '../../domain/entities/session_log.dart';
 import '../../domain/entities/session_scout_recommendation.dart';
 import '../providers/focus_dependencies.dart';
+import '../providers/focus_providers.dart';
 import 'focus_timer_screen.dart';
 import 'preset_form_screen.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   final FocusDependencies dependencies;
 
   const DashboardScreen({
@@ -17,54 +19,27 @@ class DashboardScreen extends StatefulWidget {
   });
 
   @override
-  State<DashboardScreen> createState() =>
+  ConsumerState<DashboardScreen> createState() =>
       DashboardScreenState();
 }
 
-class DashboardScreenState extends State<DashboardScreen> {
-  late Future<List<FocusPreset>> _presetsFuture;
-  late Future<List<SessionLog>> _sessionsFuture;
-
+class DashboardScreenState extends ConsumerState<DashboardScreen> {
   String _selectedMood = 'All';
   String _scoutMood = 'Focused';
-
   bool _isDeleting = false;
-  bool _isLoadingRecommendation = false;
+  bool _showRecommendation = false;
 
-  SessionScoutRecommendation? _recommendation;
-
-  static const List<String> _moods = [
+  static const _moods = [
     'All',
     'Focused',
     'Relaxed',
     'Motivated',
   ];
 
-  static const List<String> _scoutMoods = [
-    'Focused',
-    'Relaxed',
-    'Motivated',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  void _loadData() {
-    _presetsFuture =
-        widget.dependencies.presetRepository.getAllPresets();
-
-    _sessionsFuture =
-        widget.dependencies.sessionRepository.getAllSessions();
-  }
-
   void reload() {
-    setState(() {
-      _loadData();
-      _recommendation = null;
-    });
+    ref.invalidate(focusPresetsProvider);
+    ref.invalidate(sessionHistoryProvider);
+    setState(() => _showRecommendation = false);
   }
 
   Future<void> _openPresetForm({FocusPreset? preset}) async {
@@ -72,10 +47,8 @@ class DashboardScreenState extends State<DashboardScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => PresetFormScreen(
-          createFocusPreset:
-              widget.dependencies.createFocusPreset,
-          updateFocusPreset:
-              widget.dependencies.updateFocusPreset,
+          createFocusPreset: ref.read(createFocusPresetProvider),
+          updateFocusPreset: ref.read(updateFocusPresetProvider),
           preset: preset,
         ),
       ),
@@ -92,8 +65,7 @@ class DashboardScreenState extends State<DashboardScreen> {
       MaterialPageRoute(
         builder: (context) => FocusTimerScreen(
           preset: preset,
-          saveSessionLog:
-              widget.dependencies.saveSessionLog,
+          saveSessionLog: ref.read(saveSessionLogProvider),
         ),
       ),
     );
@@ -111,55 +83,39 @@ class DashboardScreenState extends State<DashboardScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Preset?'),
         content: Text(
-          'Are you sure you want to delete '
-          '"${preset.name}"?\n\n'
-          'Any study sessions linked to this preset '
-          'will also be deleted. This cannot be undone.',
+          'Delete "${preset.name}"? Related session logs '
+          'will also be deleted.',
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete'),
           ),
         ],
       ),
     );
 
-    if (!mounted || confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     setState(() => _isDeleting = true);
 
     try {
-      final deletedRows =
-          await widget.dependencies.deleteFocusPreset(
-        preset.id!,
-      );
+      await ref.read(deleteFocusPresetProvider)(preset.id!);
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            deletedRows == 0
-                ? 'Preset was not found.'
-                : '"${preset.name}" was deleted.',
-          ),
-        ),
-      );
-
       reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${preset.name}" was deleted.')),
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to delete preset.'),
-          ),
+          const SnackBar(content: Text('Unable to delete preset.')),
         );
       }
     } finally {
@@ -169,61 +125,20 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _getRecommendation() async {
-    if (_isLoadingRecommendation) return;
-
-    setState(() {
-      _isLoadingRecommendation = true;
-      _recommendation = null;
-    });
-
-    try {
-      final result = await widget.dependencies
-          .getSessionScoutRecommendation(
-        moodTag: _scoutMood,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _recommendation = result;
-      });
-    } catch (_) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Unable to generate a recommendation.',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingRecommendation = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _applyRecommendation() async {
-    final recommendation = _recommendation;
-
-    if (recommendation == null) return;
-
+  Future<void> _applyRecommendation(
+    SessionScoutRecommendation recommendation,
+  ) async {
     try {
       final presets =
-          await widget.dependencies.presetRepository.getAllPresets();
+          await ref.read(focusPresetRepositoryProvider).getAllPresets();
 
       if (!mounted) return;
 
-      final matchingPresets = presets
-          .where((preset) =>
-              preset.moodTag == recommendation.moodTag)
+      final matching = presets
+          .where((preset) => preset.moodTag == recommendation.moodTag)
           .toList();
 
-      if (matchingPresets.isEmpty) {
+      if (matching.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -235,21 +150,17 @@ class DashboardScreenState extends State<DashboardScreen> {
         return;
       }
 
-      final selectedPreset = await showDialog<FocusPreset>(
+      final selected = await showDialog<FocusPreset>(
         context: context,
         builder: (dialogContext) => SimpleDialog(
           title: const Text('Apply to Focus Preset'),
-          children: matchingPresets.map((preset) {
+          children: matching.map((preset) {
             return SimpleDialogOption(
-              onPressed: () =>
-                  Navigator.pop(dialogContext, preset),
+              onPressed: () => Navigator.pop(dialogContext, preset),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
-                  '${preset.name} '
-                  '(${preset.durationMinutes} min)',
+                  '${preset.name} (${preset.durationMinutes} min)',
                 ),
               ),
             );
@@ -257,49 +168,44 @@ class DashboardScreenState extends State<DashboardScreen> {
         ),
       );
 
-      if (selectedPreset == null || !mounted) return;
+      if (selected == null || !mounted) return;
 
-      final updatedRows =
-          await widget.dependencies.updateFocusPreset(
-        id: selectedPreset.id!,
-        name: selectedPreset.name,
-        moodTag: selectedPreset.moodTag,
+      final updated = await ref.read(updateFocusPresetProvider)(
+        id: selected.id!,
+        name: selected.name,
+        moodTag: selected.moodTag,
         durationMinutes: recommendation.suggestedMinutes,
       );
 
-      if (!mounted) return;
-
-      if (updatedRows == 0) {
+      if (updated == 0) {
         throw StateError('Preset not found.');
       }
 
+      if (!mounted) return;
+
+      reload();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${selectedPreset.name} updated to '
+            '${selected.name} updated to '
             '${recommendation.suggestedMinutes} minutes.',
           ),
         ),
       );
-
-      reload();
     } catch (_) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Unable to apply recommendation.',
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to apply recommendation.'),
           ),
-        ),
-      );
+        );
+      }
     }
   }
 
   Widget _buildSummary(List<SessionLog> sessions) {
-    final completed = sessions
-        .where((session) => session.status == 'completed')
-        .length;
+    final completed =
+        sessions.where((s) => s.status == 'completed').length;
 
     final totalSeconds = sessions.fold<int>(
       0,
@@ -334,40 +240,24 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildPresetList(List<FocusPreset> presets) {
+    final filtered = _selectedMood == 'All'
+        ? presets
+        : presets.where((p) => p.moodTag == _selectedMood).toList();
+
     if (presets.isEmpty) {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Column(
-            children: [
-              Icon(Icons.bookmark_border, size: 48),
-              SizedBox(height: 12),
-              Text('No focus presets yet.'),
-              SizedBox(height: 8),
-              Text(
-                'Tap New to create your first study preset.',
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+          child: Text('No focus presets yet.'),
         ),
       );
     }
-
-    final filtered = _selectedMood == 'All'
-        ? presets
-        : presets
-            .where((preset) =>
-                preset.moodTag == _selectedMood)
-            .toList();
 
     if (filtered.isEmpty) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            'No $_selectedMood presets found.',
-          ),
+          child: Text('No $_selectedMood presets found.'),
         ),
       );
     }
@@ -390,9 +280,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text('Mood: ${preset.moodTag}'),
-                Text(
-                  'Duration: ${preset.durationMinutes} minutes',
-                ),
+                Text('Duration: ${preset.durationMinutes} minutes'),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -401,9 +289,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                     OutlinedButton.icon(
                       onPressed: _isDeleting
                           ? null
-                          : () => _openPresetForm(
-                                preset: preset,
-                              ),
+                          : () => _openPresetForm(preset: preset),
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Edit'),
                     ),
@@ -432,6 +318,10 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildSessionScout() {
+    final recommendationState = _showRecommendation
+        ? ref.watch(sessionScoutProvider(_scoutMood))
+        : null;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -450,82 +340,95 @@ class DashboardScreenState extends State<DashboardScreen> {
                 labelText: 'Select Mood',
                 border: OutlineInputBorder(),
               ),
-              items: _scoutMoods.map((mood) {
+              items: _moods.skip(1).map((mood) {
                 return DropdownMenuItem(
                   value: mood,
                   child: Text(mood),
                 );
               }).toList(),
-              onChanged: _isLoadingRecommendation
-                  ? null
-                  : (value) {
-                      if (value != null) {
-                        setState(() {
-                          _scoutMood = value;
-                          _recommendation = null;
-                        });
-                      }
-                    },
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _scoutMood = value;
+                    _showRecommendation = false;
+                  });
+                }
+              },
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: _isLoadingRecommendation
-                  ? null
-                  : _getRecommendation,
+              onPressed: () {
+                ref.invalidate(sessionScoutProvider(_scoutMood));
+                setState(() => _showRecommendation = true);
+              },
               icon: const Icon(Icons.auto_awesome),
               label: const Text('Get Recommendation'),
             ),
-            if (_isLoadingRecommendation) ...[
+            if (recommendationState != null) ...[
               const SizedBox(height: 16),
-              const Center(
-                child: CircularProgressIndicator(),
-              ),
-            ],
-            if (_recommendation != null) ...[
-              const SizedBox(height: 20),
-              const Divider(),
-              const SizedBox(height: 12),
-              Text(
-                'Suggested Duration: '
-                '${_recommendation!.suggestedMinutes} minutes',
-                key: const ValueKey('scout_result'),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              recommendationState.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(_recommendation!.explanation),
-              const SizedBox(height: 12),
-              Text(
-                'Sessions Used: '
-                '${_recommendation!.sessionsUsed}',
-              ),
-              if (_recommendation!.usedFallback)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Using the standard duration until '
-                    'more study history is available.',
-                  ),
+                error: (error, stackTrace) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Unable to generate a recommendation.'),
+                    TextButton(
+                      onPressed: () {
+                        ref.invalidate(
+                          sessionScoutProvider(_scoutMood),
+                        );
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
                 ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                children: [
-                  ElevatedButton(
-                    onPressed: _applyRecommendation,
-                    child: const Text('Apply'),
-                  ),
-                  OutlinedButton(
-                    onPressed: () {
-                      setState(() {
-                        _recommendation = null;
-                      });
-                    },
-                    child: const Text('Not now'),
-                  ),
-                ],
+                data: (recommendation) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Suggested Duration: '
+                      '${recommendation.suggestedMinutes} minutes',
+                      key: const ValueKey('scout_result'),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(recommendation.explanation),
+                    const SizedBox(height: 12),
+                    Text('Sessions Used: ${recommendation.sessionsUsed}'),
+                    if (recommendation.usedFallback)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Using the standard duration until '
+                          'more study history is available.',
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () =>
+                              _applyRecommendation(recommendation),
+                          child: const Text('Apply'),
+                        ),
+                        OutlinedButton(
+                          onPressed: () {
+                            setState(() => _showRecommendation = false);
+                          },
+                          child: const Text('Not now'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ],
@@ -536,6 +439,9 @@ class DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final presetsState = ref.watch(focusPresetsProvider);
+    final sessionsState = ref.watch(sessionHistoryProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Adaptive Focus Studio'),
@@ -545,34 +451,22 @@ class DashboardScreenState extends State<DashboardScreen> {
         children: [
           const Text(
             'Study Summary',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          FutureBuilder<List<SessionLog>>(
-            future: _sessionsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return const Text(
-                  'Unable to load study summary.',
-                );
-              }
-
-              if (!snapshot.hasData) {
-                return const Center(
-                  child: CircularProgressIndicator(),
-                );
-              }
-
-              return _buildSummary(snapshot.data!);
-            },
+          sessionsState.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(),
+            ),
+            error: (error, stackTrace) => TextButton(
+              onPressed: () => ref.invalidate(sessionHistoryProvider),
+              child: const Text('Retry Loading Summary'),
+            ),
+            data: _buildSummary,
           ),
           const SizedBox(height: 24),
           Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Expanded(
                 child: Text(
@@ -614,32 +508,20 @@ class DashboardScreenState extends State<DashboardScreen> {
             },
           ),
           const SizedBox(height: 16),
-          FutureBuilder<List<FocusPreset>>(
-            future: _presetsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return ElevatedButton(
-                  onPressed: reload,
-                  child: const Text('Retry'),
-                );
-              }
-
-              if (!snapshot.hasData) {
-                return const Center(
-                  child: CircularProgressIndicator(),
-                );
-              }
-
-              return _buildPresetList(snapshot.data!);
-            },
+          presetsState.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(),
+            ),
+            error: (error, stackTrace) => TextButton(
+              onPressed: () => ref.invalidate(focusPresetsProvider),
+              child: const Text('Retry Loading Presets'),
+            ),
+            data: _buildPresetList,
           ),
           const SizedBox(height: 24),
           const Text(
             'Session Scout',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           _buildSessionScout(),

@@ -1,8 +1,8 @@
 
 # Adaptive Focus Studio
 
-Adaptive Focus Studio is a Flutter mobile application
-for organizing focus sessions, tracking study progress,
+Adaptive Focus Studio is a Flutter application for
+organizing focus sessions, tracking study progress,
 and recommending personalized study durations.
 
 Developed for CSC 6360 - Mobile App Development
@@ -15,21 +15,20 @@ Isaac Owusu
 ## Technologies
 
 - Flutter and Dart
+- Riverpod
 - SQLite (sqflite)
 - SharedPreferences
 - Material Design 3
 - intl
-- sqflite_common_ffi for database tests
+- sqflite_common_ffi for database testing
 
 ## Features
 
 ### Focus Presets
 
-- Create focus presets
-- Edit saved presets
-- Delete presets with confirmation
+- Create, edit, and delete focus presets
 - Filter presets by mood
-- Store presets in SQLite
+- Store presets locally using SQLite
 
 Supported moods:
 - Focused
@@ -38,19 +37,16 @@ Supported moods:
 
 ### Focus Timer
 
-- Start a countdown
-- Pause and resume
-- Finish early
-- Reset the timer
-- Automatically save completed sessions
-- Save partial sessions
+- Start, pause, and resume sessions
+- Finish sessions early
+- Reset the countdown
+- Save completed and partial sessions
 
 ### History & Insights
 
-- View saved sessions
+- View session history
 - Add manual session logs
-- Edit session logs
-- Delete session logs
+- Edit and delete session logs
 - View completed-session count
 - View total study time
 - View average session duration
@@ -61,96 +57,103 @@ Supported moods:
 - Reminder preference
 - Reduced-motion preference
 - Sound preference
-- Persistent storage using SharedPreferences
+- Persistent settings using SharedPreferences
 
 ### Session Scout
 
-Session Scout recommends study durations based on
-previously completed sessions for a selected mood.
+Session Scout uses the three most recent completed
+sessions matching a selected mood to recommend
+a study duration.
 
-How it works:
+The algorithm:
+1. Finds completed sessions for the selected mood.
+2. Selects the three most recent sessions.
+3. Calculates their median completed duration.
+4. Rounds to the nearest minute.
+5. Limits recommendations to 10-60 minutes.
+6. Uses a 25-minute fallback when history is insufficient.
 
-1. Select a mood on the Dashboard.
-2. Tap Get Recommendation.
-3. Session Scout finds the three most recent
-   completed sessions for that mood.
-4. It calculates their median completed duration.
-5. The recommendation is rounded to the nearest
-   minute and limited to 10-60 minutes.
-6. The suggested duration and explanation appear.
-7. Tap Apply to update a matching focus preset.
-8. Tap Not now to dismiss the recommendation.
-
-If fewer than three completed sessions match
-the selected mood, Session Scout recommends
-the standard 25-minute duration.
-
-Applying a recommendation updates the selected
-preset in SQLite. Future sessions using that
-preset use the new duration.
+The Dashboard lets users generate recommendations,
+view explanations, apply durations to matching
+presets, or dismiss recommendations.
 
 ### Session Scout Evaluation
 
-The evaluation feature compares Session Scout
-against a fixed 25-minute baseline.
-
-Both methods predict the duration of a
-subsequent study session.
+Session Scout is compared against a fixed
+25-minute baseline using synthetic test cases.
 
 The evaluation calculates absolute prediction
-errors and mean absolute error (MAE).
+error and mean absolute error.
 
-Six synthetic test cases demonstrate the
-evaluation, including a no-history fallback case.
-
-Results on the synthetic examples:
-
+Synthetic example results:
 - Session Scout MAE: 2.33 minutes
-- Fixed baseline MAE: 13.00 minutes
+- Baseline MAE: 13.00 minutes
 - Relative MAE reduction: approximately 82.05%
 
-These results demonstrate the evaluation method.
-They are not evidence of real-world superiority.
+These synthetic results do not establish
+real-world superiority.
 
-See AI_FEATURE.md for the methodology, results,
-limitations, and possible improvements.
+See AI_FEATURE.md for details.
+
+## Riverpod State Management
+
+Riverpod manages application dependencies
+and asynchronous data loading.
+
+Providers include:
+- focusDependenciesProvider
+- focusPresetRepositoryProvider
+- sessionLogRepositoryProvider
+- createFocusPresetProvider
+- updateFocusPresetProvider
+- deleteFocusPresetProvider
+- saveSessionLogProvider
+- getSessionScoutRecommendationProvider
+- focusPresetsProvider
+- sessionHistoryProvider
+- sessionScoutProvider
+
+The Dashboard and History screens use
+ConsumerStatefulWidget.
+
+Database changes trigger provider invalidation,
+allowing the screens to reload saved data.
+
+The app still uses SQLite for persistent storage.
 
 ## Architecture
 
-The application follows clean architecture:
+The project follows clean architecture:
 
-- Presentation: Flutter screens and UI state
-- Domain: Entities, repository interfaces, use cases
-- Data: SQLite models and repositories
+- Presentation: Flutter screens and Riverpod providers
+- Domain: Entities, repository interfaces, and use cases
+- Data: SQLite models and repository implementations
 
-See ARCHITECTURE.md for details.
+See ARCHITECTURE.md.
 
 ## Database
 
-Database file:
-
-adaptive_focus_studio.db
-
-Tables:
+The application stores:
 - focus_presets
 - session_logs
 
 Deleting a preset also deletes its related
-session logs through foreign-key cascade deletion.
+session logs through SQLite foreign-key
+cascade deletion.
 
-## Running the Application
+## Running the App
 
-Install dependencies:
+Install packages:
 
     flutter pub get
 
-Run:
+Start the app:
 
     flutter run
 
 ## Testing
 
-Format:
+Format code:
 
     dart format lib test
 
@@ -162,53 +165,51 @@ Run all tests:
 
     flutter test
 
+Run Riverpod tests:
+
+    flutter test test/features/focus/presentation/focus_providers_test.dart
+
 Run widget tests:
 
     flutter test test/widget_test.dart
 
-Run Session Scout algorithm tests:
+Run Session Scout tests:
 
     flutter test test/features/focus/domain/calculate_session_scout_test.dart
 
-Run Session Scout repository tests:
-
-    flutter test test/features/focus/domain/get_session_scout_recommendation_test.dart
-
-Run Session Scout evaluation tests:
+Run evaluation tests:
 
     flutter test test/features/focus/domain/evaluate_session_scout_test.dart
 
 ## Development Progress
 
 Commits 1-8:
-Project setup, clean architecture, SQLite,
-and focus preset management.
+Project setup, architecture, SQLite,
+and preset management.
 
 Commit 9:
-Focus timer, session history, statistics,
-and persistent settings.
+Focus timer, history, statistics,
+and settings.
 
 Commit 10:
-Session Scout recommendation algorithm
-and automated tests.
+Session Scout algorithm.
 
 Commit 11:
-Session Scout Dashboard interface,
-mood selection, recommendation display,
-and Apply/Not now actions.
+Session Scout Dashboard integration.
 
 Commit 12:
-Session Scout evaluation against the fixed
-25-minute baseline, evaluation tests,
-and AI_FEATURE.md documentation.
+Session Scout baseline evaluation.
+
+Commit 13:
+Riverpod dependency injection,
+asynchronous providers, and UI integration.
 
 ## Planned Features
 
-- Riverpod state management
 - Animations and responsive layouts
 - Dart isolate for statistics
 - Local notifications
-- JSON export and import
+- JSON import and export
 - Additional unit and widget tests
 - Integration testing
 - Coverage and final documentation
