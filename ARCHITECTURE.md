@@ -3,7 +3,7 @@
 
 ## 1. Overview
 
-Adaptive Focus Studio is a Flutter application that helps students organize focus sessions, track their study progress, and receive personalized study-duration recommendations.
+Adaptive Focus Studio is a Flutter application that helps students organize focus sessions, track study progress, and receive personalized study-duration recommendations.
 
 The application follows clean architecture to separate the user interface, business logic, and data storage.
 
@@ -23,9 +23,11 @@ Presentation -> Domain <- Data
 
 The domain layer contains the application's core business logic and does not depend on Flutter widgets or SQLite implementations.
 
+Platform-specific services, such as local notifications, are placed under core.
+
 ## 3. Presentation Layer
 
-The presentation layer contains the screens, reusable widgets, and Riverpod providers.
+The presentation layer contains screens, reusable widgets, and Riverpod providers.
 
 ### Screens
 
@@ -70,6 +72,10 @@ Supported settings:
 - Reduced-motion preference
 - Sound preference
 
+The Reminders setting requests notification permission when enabled and saved.
+
+The reduced-motion preference controls custom decorative animations.
+
 ## 4. Domain Layer
 
 The domain layer contains entities, repository interfaces, and use cases.
@@ -80,7 +86,6 @@ The domain layer contains entities, repository interfaces, and use cases.
 - SessionLog
 - SessionScoutRecommendation
 - SessionScoutEvaluationCase
-- SessionScoutCaseResult
 - SessionScoutEvaluationResult
 - StudyStatistics
 
@@ -164,7 +169,7 @@ Riverpod is used for dependency injection and asynchronous state management.
 
 ### Dependency Injection
 
-FocusDependencies constructs the repositories and use cases.
+FocusDependencies constructs repositories and use cases.
 
 ProviderScope makes these dependencies available throughout the application.
 
@@ -196,8 +201,6 @@ ProviderScope makes these dependencies available throughout the application.
 
 When the application creates, edits, or deletes data, the affected providers are invalidated.
 
-This allows Riverpod to reload the updated information.
-
 For example:
 
 1. A user completes a focus session.
@@ -205,7 +208,7 @@ For example:
 3. sessionHistoryProvider is invalidated.
 4. Riverpod reloads the session history.
 5. studyStatisticsProvider recalculates the statistics.
-6. The Dashboard and History screens display updated values.
+6. Dashboard and History display updated values.
 
 ## 8. Focus Timer
 
@@ -220,13 +223,193 @@ The timer uses Stopwatch to measure elapsed time.
 
 Timer.periodic updates the displayed countdown.
 
-When a session is completed, the application saves a completed session log.
+When the countdown finishes naturally, the timer saves a completed session log.
 
 If the user finishes early, the session can be saved as partial.
 
 Session logs are stored in SQLite through SaveSessionLog.
 
-## 9. Session Scout Recommendation System
+### Timer Lifecycle
+
+Ready:
+
+The timer has not started.
+
+Running:
+
+Stopwatch measures elapsed time, and Timer.periodic updates the countdown.
+
+Paused:
+
+Stopwatch stops until the user resumes.
+
+Finished:
+
+The timer has stopped and the session is saved.
+
+### Natural Completion
+
+When the remaining time reaches zero:
+
+1. Stopwatch stops.
+2. The periodic timer is cancelled.
+3. The timer state changes to Finished.
+4. The session is marked as naturally completed.
+5. SaveSessionLog saves the completed session.
+6. The notification controller is called after successful saving.
+7. The notification service checks the Reminders preference.
+8. A local notification is displayed if reminders are enabled and platform permission allows it.
+
+### Manual Completion
+
+When the user presses Finish:
+
+1. Stopwatch stops.
+2. The periodic timer is cancelled.
+3. The session is marked as manually finished.
+4. The session log is saved.
+5. No completion notification is requested.
+
+### Reset
+
+Reset cancels the periodic timer, resets Stopwatch, and returns the timer to Ready.
+
+The notification state is also reset.
+
+## 9. Local Notifications
+
+### Purpose
+
+Local notifications inform users when a focus session finishes naturally.
+
+The application uses flutter_local_notifications.
+
+Notifications are generated on the device without a server.
+
+### Components
+
+#### FocusNotificationService
+
+An abstract interface defining:
+
+- initialize()
+- requestPermission()
+- notifySessionCompleted()
+
+#### LocalFocusNotificationService
+
+The platform-specific implementation of FocusNotificationService.
+
+It uses FlutterLocalNotificationsPlugin.
+
+Responsibilities:
+
+- Initialize the notification plugin
+- Request notification permission
+- Read the saved reminder preference
+- Display a local notification
+
+#### FocusNotificationController
+
+A small controller that decides whether a notification should be requested.
+
+It receives:
+
+- Preset name
+- Natural-completion flag
+- Session status
+
+It requests a notification only when:
+
+- The session finished naturally
+- The saved status is completed
+
+#### FocusTimerScreen
+
+The Focus Timer calls FocusNotificationController after a naturally completed session has been saved successfully.
+
+### Notification Flow
+
+1. User enables Reminders in Settings.
+2. User saves Settings.
+3. The application requests notification permission.
+4. The reminder preference is saved.
+5. User starts a focus session.
+6. The countdown reaches zero naturally.
+7. The completed session is saved in SQLite.
+8. FocusNotificationController checks the completion reason.
+9. LocalFocusNotificationService reads reminders_enabled.
+10. If reminders are enabled, the service requests an immediate local notification.
+
+### Notification Content
+
+Title:
+
+Focus session completed
+
+Body:
+
+You finished your [Preset Name] focus session.
+
+### Android Configuration
+
+AndroidManifest.xml declares:
+
+android.permission.POST_NOTIFICATIONS
+
+The application requests notification permission at runtime on supported Android versions.
+
+The Android build uses Java 17 and core library desugaring.
+
+### Notification Channel
+
+Channel ID:
+
+focus_sessions
+
+Channel Name:
+
+Focus Sessions
+
+Importance:
+
+High
+
+Priority:
+
+High
+
+### Reminder Preference
+
+The key reminders_enabled is stored in SharedPreferences.
+
+When the preference is false, the notification service returns without displaying a notification.
+
+When the preference is true, the service attempts to display a notification.
+
+The operating system may still block notifications if permission is denied or notification settings are changed outside the application.
+
+### Error Handling
+
+Notification initialization errors are caught so they do not prevent the application from starting.
+
+Notification display errors are caught separately from session-saving errors.
+
+A notification failure does not undo a successfully saved session.
+
+### Limitations
+
+The implementation uses immediate notifications.
+
+It does not schedule notifications to run at a future time.
+
+The Focus Timer must remain active to detect countdown completion.
+
+If the application is suspended or terminated before the timer reaches zero, notification delivery is not guaranteed.
+
+Background scheduling would require additional design and platform configuration.
+
+## 10. Session Scout Recommendation System
 
 Session Scout is a deterministic, rule-based recommendation algorithm.
 
@@ -245,10 +428,10 @@ It suggests study durations based on previously completed sessions.
 2. Retrieve saved presets and session logs.
 3. Identify presets matching the selected mood.
 4. Select completed sessions linked to those presets.
-5. Sort the sessions from newest to oldest.
+5. Sort sessions from newest to oldest.
 6. Select the three most recent completed sessions.
 7. Calculate the median completed duration.
-8. Round the median to the nearest whole minute.
+8. Round the median to the nearest minute.
 9. Limit the recommendation to 10-60 minutes.
 10. Return the recommendation and explanation.
 
@@ -272,7 +455,7 @@ Session mood is determined through the preset associated with each session.
 
 Changing a preset's mood can therefore affect how previous sessions are grouped.
 
-## 10. Session Scout Evaluation
+## 11. Session Scout Evaluation
 
 EvaluateSessionScout compares Session Scout against a fixed 25-minute baseline.
 
@@ -325,17 +508,13 @@ Relative MAE reduction:
 
 Approximately 82.05%
 
-These results demonstrate the evaluation method.
-
-They do not establish that Session Scout performs better with real-world study data.
-
-More realistic evaluation would require actual chronological session records.
+These results demonstrate the evaluation method and do not establish real-world performance.
 
 See AI_FEATURE.md for the full evaluation.
 
-## 11. Custom Animations
+## 12. Custom Animations
 
-The application uses both implicit and explicit Flutter animations.
+The application uses implicit and explicit Flutter animations.
 
 ### Implicit Animation
 
@@ -369,7 +548,7 @@ When reduced motion is enabled:
 - Decorative focus indicator animation is disabled.
 - Custom panel transition duration becomes zero.
 
-## 12. Responsive Layout
+## 13. Responsive Layout
 
 The application supports different screen sizes.
 
@@ -383,7 +562,7 @@ The Dashboard uses LayoutBuilder and Wrap.
 
 On narrow screens, preset cards use one column.
 
-When the available content width is at least 650 pixels, preset cards use two columns.
+When available content width is at least 650 pixels, preset cards use two columns.
 
 ### Navigation
 
@@ -391,7 +570,7 @@ Screens narrower than 700 pixels use NavigationBar.
 
 Screens at least 700 pixels wide use NavigationRail.
 
-## 13. Background Statistics Processing
+## 14. Background Statistics Processing
 
 ### Purpose
 
@@ -399,15 +578,11 @@ The application calculates study statistics using a background Dart isolate.
 
 This separates potentially expensive calculations from Flutter's main UI isolate.
 
-The goal is to avoid blocking the interface during larger calculations.
-
 ### Components
 
 #### StudyStatistics
 
-A domain entity containing the calculated statistics.
-
-Fields:
+A domain entity containing:
 
 - totalSessions
 - completedSessions
@@ -424,41 +599,22 @@ Computed properties:
 
 #### calculateStudyStatistics
 
-A pure Dart function that processes session data.
+A pure Dart function that calculates statistics from session data.
 
-It calculates:
-
-- Total session count
-- Completed session count
-- Partial session count
-- Total duration
-- Average duration
-- Longest session duration
-
-The function also validates session durations and statuses.
+It validates session durations and statuses.
 
 #### StudyStatisticsService
 
-A service that uses Isolate.run() to perform calculations in a background isolate.
+Uses Isolate.run() to execute the calculation in a background isolate.
 
-The service receives a list of SessionLog objects.
-
-It converts the objects into simple maps containing:
+The service converts SessionLog objects into maps containing:
 
 - status
 - completedSeconds
 
-These maps are passed to the background isolate.
-
-The isolate runs calculateStudyStatistics and returns a StudyStatistics object.
-
 #### studyStatisticsProvider
 
-A Riverpod FutureProvider that coordinates statistics processing.
-
-It watches sessionHistoryProvider and uses StudyStatisticsService to calculate the results.
-
-The Dashboard and History screens watch studyStatisticsProvider.
+A Riverpod FutureProvider that watches sessionHistoryProvider and calls StudyStatisticsService.
 
 ### Data Flow
 
@@ -466,13 +622,13 @@ The Dashboard and History screens watch studyStatisticsProvider.
 2. sessionHistoryProvider exposes the session list.
 3. studyStatisticsProvider receives the session data.
 4. StudyStatisticsService converts sessions into transferable maps.
-5. Isolate.run() starts the background calculation.
+5. Isolate.run() executes the background calculation.
 6. calculateStudyStatistics processes the data.
-7. The background isolate returns StudyStatistics.
-8. Riverpod exposes the calculated statistics.
-9. The Dashboard and History screens display the results.
+7. The isolate returns StudyStatistics.
+8. Riverpod exposes the results.
+9. Dashboard and History display the statistics.
 
-### Calculation Rules
+### Calculated Metrics
 
 Total Sessions:
 
@@ -502,7 +658,7 @@ Completion Rate:
 
 Completed Sessions / Total Sessions * 100
 
-If no sessions exist, the completion rate is zero.
+If no sessions exist, completion rate is zero.
 
 ### Error Handling
 
@@ -511,25 +667,21 @@ The calculation rejects:
 - Negative session durations
 - Unsupported session statuses
 
-Riverpod exposes three asynchronous states:
+Riverpod exposes loading, data, and error states.
 
-- Loading
-- Data
-- Error
-
-Both screens provide a retry option when statistics cannot be loaded.
+Both screens provide retry options.
 
 ### Performance Considerations
 
 Using an isolate introduces startup and data-transfer overhead.
 
-For a small number of sessions, calculating directly on the main isolate may be faster.
+For small datasets, direct calculation may be faster.
 
-The isolate implementation is intended to demonstrate background processing and provide a foundation for larger workloads.
+The implementation demonstrates background processing for larger workloads.
 
 SQLite access remains outside the background isolate.
 
-## 14. Testing Strategy
+## 15. Testing Strategy
 
 The project uses unit tests, database tests, widget tests, and provider tests.
 
@@ -557,7 +709,7 @@ The project uses unit tests, database tests, widget tests, and provider tests.
 - Focus Timer
 - History
 - Settings
-- Session Scout recommendation interface
+- Session Scout interface
 
 ### Riverpod Tests
 
@@ -583,30 +735,36 @@ The project uses unit tests, database tests, widget tests, and provider tests.
 - Maximum content width
 - Custom padding
 
-### Statistics Calculation Tests
+### Statistics Tests
 
-- Empty session history
+- Empty history
 - Completed sessions
 - Partial sessions
-- Total study duration
-- Average session duration
+- Total duration
+- Average duration
 - Longest session
 - Completion rate
-- Invalid durations
-- Invalid statuses
-- Input preservation
+- Invalid inputs
 
 ### Background Isolate Tests
 
-- Empty session calculation
-- Multiple session calculation
+- Empty calculation
+- Multiple sessions
 - Larger session collection
 - Error propagation
 - Input preservation
 
-The isolate service tests call the real StudyStatisticsService implementation.
+### Notification Controller Tests
 
-## 15. Development Progress
+- Natural completion triggers notification
+- Early completion does not trigger notification
+- Manual completion does not trigger notification
+- Partial status does not trigger notification
+- Preset name is passed correctly
+
+Notification permission and display behavior also require manual testing on Android.
+
+## 16. Development Progress
 
 ### Commits 1-8
 
@@ -640,9 +798,12 @@ Custom animations, responsive layouts, and reduced-motion support.
 
 Background statistics processing using Dart isolates, Riverpod integration, and automated tests.
 
-## 16. Planned Work
+### Commit 16
 
-- Local notifications
+Local notifications, Android notification permission, reminder preference integration, and notification controller tests.
+
+## 17. Planned Work
+
 - JSON import and export
 - Additional unit and widget tests
 - Integration testing

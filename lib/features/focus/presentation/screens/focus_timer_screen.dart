@@ -3,6 +3,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/notifications/focus_notification_controller.dart';
+import '../../../../core/notifications/focus_notification_service.dart';
 import '../../domain/entities/focus_preset.dart';
 import '../../domain/usecases/save_session_log.dart';
 
@@ -16,11 +18,13 @@ enum FocusTimerStatus {
 class FocusTimerScreen extends StatefulWidget {
   final FocusPreset preset;
   final SaveSessionLog saveSessionLog;
+  final FocusNotificationController? notificationController;
 
   const FocusTimerScreen({
     super.key,
     required this.preset,
     required this.saveSessionLog,
+    this.notificationController,
   });
 
   @override
@@ -34,10 +38,13 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
 
   late final int _totalSeconds;
   late int _remainingSeconds;
+  late final FocusNotificationController _notificationController;
 
   FocusTimerStatus _status = FocusTimerStatus.ready;
   bool _isSaving = false;
   bool _sessionSaved = false;
+  bool _completedNaturally = false;
+  bool _notificationAttempted = false;
 
   @override
   void initState() {
@@ -45,6 +52,11 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
 
     _totalSeconds = widget.preset.durationMinutes * 60;
     _remainingSeconds = _totalSeconds;
+
+    _notificationController = widget.notificationController ??
+        FocusNotificationController(
+          LocalFocusNotificationService(),
+        );
   }
 
   @override
@@ -81,7 +93,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
   }
 
   void _updateRemainingTime() {
-    if (_status != FocusTimerStatus.running) {
+    if (!mounted || _status != FocusTimerStatus.running) {
       return;
     }
 
@@ -94,6 +106,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
       setState(() {
         _remainingSeconds = 0;
         _status = FocusTimerStatus.finished;
+        _completedNaturally = true;
       });
 
       _saveSession('completed');
@@ -168,6 +181,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
         _totalSeconds,
       );
       _status = FocusTimerStatus.finished;
+      _completedNaturally = false;
     });
 
     await _saveSession(
@@ -189,7 +203,33 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
       _remainingSeconds = _totalSeconds;
       _status = FocusTimerStatus.ready;
       _sessionSaved = false;
+      _completedNaturally = false;
+      _notificationAttempted = false;
     });
+  }
+
+  Future<void> _sendCompletionNotification(
+    String status,
+  ) async {
+    if (_notificationAttempted) {
+      return;
+    }
+
+    if (!_completedNaturally || status != 'completed') {
+      return;
+    }
+
+    _notificationAttempted = true;
+
+    try {
+      await _notificationController.onSessionSaved(
+        presetName: widget.preset.name,
+        completedNaturally: _completedNaturally,
+        status: status,
+      );
+    } catch (error) {
+      debugPrint('Unable to show focus notification: $error');
+    }
   }
 
   Future<void> _saveSession(String status) async {
@@ -227,6 +267,8 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
       });
 
       _showMessage('Study session saved successfully.');
+
+      await _sendCompletionNotification(status);
     } catch (error) {
       if (!mounted) {
         return;

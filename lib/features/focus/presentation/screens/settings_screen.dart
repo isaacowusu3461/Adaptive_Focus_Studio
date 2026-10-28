@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/notifications/focus_notification_service.dart';
 import '../providers/motion_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -20,6 +21,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _soundEnabled = true;
   bool _loading = true;
   bool _saving = false;
+
+  final FocusNotificationService _notificationService =
+      LocalFocusNotificationService();
 
   @override
   void initState() {
@@ -47,14 +51,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _loading = false;
       });
     } catch (_) {
-      if (mounted) {
-        setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to load settings.'),
-          ),
-        );
-      }
+      if (!mounted) return;
+
+      setState(() => _loading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to load settings.'),
+        ),
+      );
     }
   }
 
@@ -64,16 +69,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _saving = true);
 
     try {
+      bool remindersToSave = _remindersEnabled;
+
+      if (remindersToSave) {
+        final permissionGranted =
+            await _notificationService.requestPermission();
+
+        if (!permissionGranted) {
+          remindersToSave = false;
+
+          if (mounted) {
+            setState(() => _remindersEnabled = false);
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Notification permission was not granted. '
+                  'Reminders remain disabled.',
+                ),
+              ),
+            );
+          }
+        }
+      }
+
       final preferences = await SharedPreferences.getInstance();
 
       await preferences.setInt(
         'default_focus_duration',
         _defaultDuration.round(),
       );
+
       await preferences.setBool(
         'reminders_enabled',
-        _remindersEnabled,
+        remindersToSave,
       );
+
       await preferences.setBool(
         'sound_enabled',
         _soundEnabled,
@@ -90,14 +121,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           content: Text('Settings saved.'),
         ),
       );
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to save settings.'),
-          ),
-        );
-      }
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to save settings.'),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -140,20 +171,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               max: 60,
               divisions: 50,
               label: '${_defaultDuration.round()} min',
-              onChanged: (value) {
-                setState(() => _defaultDuration = value);
-              },
+              onChanged: _saving
+                  ? null
+                  : (value) {
+                      setState(() => _defaultDuration = value);
+                    },
             ),
             const Divider(),
             SwitchListTile(
               title: const Text('Reminders'),
               subtitle: const Text(
-                'Save your reminder preference.',
+                'Notify me when a focus session finishes.',
               ),
               value: _remindersEnabled,
-              onChanged: (value) {
-                setState(() => _remindersEnabled = value);
-              },
+              onChanged: _saving
+                  ? null
+                  : (value) {
+                      setState(() => _remindersEnabled = value);
+                    },
             ),
             SwitchListTile(
               title: const Text('Reduce Motion'),
@@ -161,9 +196,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 'Disable decorative animations.',
               ),
               value: _reduceMotion,
-              onChanged: (value) {
-                setState(() => _reduceMotion = value);
-              },
+              onChanged: _saving
+                  ? null
+                  : (value) {
+                      setState(() => _reduceMotion = value);
+                    },
             ),
             SwitchListTile(
               title: const Text('Sound'),
@@ -171,9 +208,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 'Save your sound preference.',
               ),
               value: _soundEnabled,
-              onChanged: (value) {
-                setState(() => _soundEnabled = value);
-              },
+              onChanged: _saving
+                  ? null
+                  : (value) {
+                      setState(() => _soundEnabled = value);
+                    },
             ),
             const SizedBox(height: 24),
             FilledButton(
