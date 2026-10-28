@@ -72,6 +72,8 @@ Supported settings:
 - Reduced-motion preference
 - Sound preference
 
+The Settings screen also provides JSON backup and restore actions.
+
 The Reminders setting requests notification permission when enabled and saved.
 
 The reduced-motion preference controls custom decorative animations.
@@ -111,7 +113,7 @@ It does not directly access SQLite, Flutter widgets, or Riverpod.
 
 ## 5. Data Layer
 
-The data layer handles local persistence and background processing.
+The data layer handles local persistence, background processing, and JSON backup operations.
 
 ### Database
 
@@ -132,6 +134,15 @@ DatabaseHelper manages the SQLite database.
 - StudyStatisticsService
 
 StudyStatisticsService runs statistics calculations in a background Dart isolate.
+
+### Backup Services
+
+- FocusBackupCodec
+- FocusBackupService
+
+FocusBackupCodec handles JSON encoding and validation.
+
+FocusBackupService handles database export, file selection, native sharing, and transactional restoration.
 
 ## 6. SQLite Database
 
@@ -162,6 +173,8 @@ The preset_id column references the focus_presets table.
 Foreign keys are enabled.
 
 Deleting a preset automatically deletes its related session logs.
+
+The JSON backup feature uses the existing schema without requiring a database migration.
 
 ## 7. Riverpod State Management
 
@@ -197,6 +210,12 @@ ProviderScope makes these dependencies available throughout the application.
 
 - reduceMotionProvider
 
+### Backup Provider
+
+- focusBackupServiceProvider
+
+The backup provider creates FocusBackupService using the existing DatabaseHelper instance.
+
 ### Provider Invalidation
 
 When the application creates, edits, or deletes data, the affected providers are invalidated.
@@ -209,6 +228,13 @@ For example:
 4. Riverpod reloads the session history.
 5. studyStatisticsProvider recalculates the statistics.
 6. Dashboard and History display updated values.
+
+After a successful JSON restore:
+
+1. The backup service commits the restored records.
+2. focusPresetsProvider is invalidated.
+3. sessionHistoryProvider is invalidated.
+4. Dependent statistics and recommendations are recalculated.
 
 ## 8. Focus Timer
 
@@ -298,9 +324,7 @@ An abstract interface defining:
 
 #### LocalFocusNotificationService
 
-The platform-specific implementation of FocusNotificationService.
-
-It uses FlutterLocalNotificationsPlugin.
+The platform-specific implementation.
 
 Responsibilities:
 
@@ -311,7 +335,7 @@ Responsibilities:
 
 #### FocusNotificationController
 
-A small controller that decides whether a notification should be requested.
+Decides whether a notification should be requested.
 
 It receives:
 
@@ -319,14 +343,11 @@ It receives:
 - Natural-completion flag
 - Session status
 
-It requests a notification only when:
-
-- The session finished naturally
-- The saved status is completed
+It requests a notification only when the session finished naturally and its saved status is completed.
 
 #### FocusTimerScreen
 
-The Focus Timer calls FocusNotificationController after a naturally completed session has been saved successfully.
+Calls FocusNotificationController after a naturally completed session has been saved successfully.
 
 ### Notification Flow
 
@@ -357,8 +378,6 @@ AndroidManifest.xml declares:
 
 android.permission.POST_NOTIFICATIONS
 
-The application requests notification permission at runtime on supported Android versions.
-
 The Android build uses Java 17 and core library desugaring.
 
 ### Notification Channel
@@ -383,15 +402,15 @@ High
 
 The key reminders_enabled is stored in SharedPreferences.
 
-When the preference is false, the notification service returns without displaying a notification.
+When false, the notification service returns without notifying.
 
-When the preference is true, the service attempts to display a notification.
+When true, the service attempts to display a notification.
 
-The operating system may still block notifications if permission is denied or notification settings are changed outside the application.
+The operating system may still block notifications if permission is denied.
 
 ### Error Handling
 
-Notification initialization errors are caught so they do not prevent the application from starting.
+Notification initialization errors do not prevent the application from starting.
 
 Notification display errors are caught separately from session-saving errors.
 
@@ -401,15 +420,205 @@ A notification failure does not undo a successfully saved session.
 
 The implementation uses immediate notifications.
 
-It does not schedule notifications to run at a future time.
-
-The Focus Timer must remain active to detect countdown completion.
+It does not schedule notifications for future times.
 
 If the application is suspended or terminated before the timer reaches zero, notification delivery is not guaranteed.
 
-Background scheduling would require additional design and platform configuration.
+## 10. JSON Backup and Restore
 
-## 10. Session Scout Recommendation System
+### Purpose
+
+The JSON backup feature allows users to export and restore their focus presets and session history.
+
+The feature is designed to work offline.
+
+It uses the existing SQLite database without changing its schema.
+
+### Components
+
+#### FocusBackupData
+
+A data structure containing:
+
+- Preset records
+- Session records
+
+#### FocusBackupCodec
+
+Responsible for:
+
+- Encoding database records into JSON
+- Decoding JSON into validated database records
+- Checking the backup format version
+- Checking required fields
+- Validating preset and session IDs
+- Validating relationships between sessions and presets
+
+The codec does not access SQLite or the device file system.
+
+#### FocusBackupService
+
+Responsible for:
+
+- Reading saved presets and sessions
+- Generating a JSON backup
+- Creating a temporary export file
+- Opening the native share sheet
+- Selecting a JSON backup file
+- Validating imported data
+- Restoring records using a SQLite transaction
+
+#### focusBackupServiceProvider
+
+A Riverpod provider that constructs FocusBackupService using the application's existing DatabaseHelper.
+
+#### SettingsScreen
+
+Provides the user interface for:
+
+- Export JSON Backup
+- Import JSON Backup
+- Confirming replacement
+- Displaying success and error messages
+
+### Backup Format
+
+The JSON file includes:
+
+- formatVersion
+- app
+- exportedAt
+- focusPresets
+- sessionLogs
+
+Each focus preset contains:
+
+- id
+- name
+- moodTag
+- durationMinutes
+
+Each session log contains:
+
+- id
+- presetId
+- date
+- completedSeconds
+- status
+- notes
+
+### Export Flow
+
+1. User selects Export JSON Backup.
+2. SettingsScreen calls FocusBackupService.
+3. The service retrieves presets and sessions from SQLite.
+4. Both tables are read within a database transaction.
+5. FocusBackupCodec generates the JSON document.
+6. The service writes the JSON to a temporary file.
+7. The native share sheet opens.
+8. The user chooses where to save or share the backup.
+
+The exported JSON is independent of the SQLite database file.
+
+### Import Flow
+
+1. User selects Import JSON Backup.
+2. SettingsScreen displays a replacement warning.
+3. User confirms.
+4. The file picker opens.
+5. User selects a JSON file.
+6. The service reads the file.
+7. FocusBackupCodec validates the document.
+8. The service begins a SQLite transaction.
+9. Existing session logs are deleted.
+10. Existing focus presets are deleted.
+11. Imported presets are inserted.
+12. Imported sessions are inserted.
+13. The transaction commits.
+14. Riverpod providers are invalidated.
+15. Dashboard and History reload restored data.
+
+If the user cancels the file picker, no database changes occur.
+
+### Validation Rules
+
+The codec validates:
+
+- JSON object structure
+- Supported format version
+- Correct application name
+- Valid export timestamp
+- Preset and session arrays
+- Positive integer IDs
+- Unique preset IDs
+- Unique session IDs
+- Non-empty preset names
+- Supported mood tags
+- Positive preset durations
+- Valid session dates
+- Non-negative completed seconds
+- Completed or partial session status
+- String notes
+- Valid session-to-preset relationships
+
+A session referencing a missing preset causes validation to fail.
+
+### Restore Strategy
+
+The application uses replace-all restoration.
+
+This means the imported backup becomes the current database content.
+
+It does not merge imported records with existing records.
+
+This approach avoids duplicate records when the same backup is imported repeatedly.
+
+Original record IDs are preserved so session relationships remain valid.
+
+### SQLite Transactions
+
+The entire restoration operation runs inside one transaction.
+
+If an insert or delete fails, SQLite rolls back the transaction.
+
+This prevents partially restored data.
+
+The application validates the backup before starting the transaction.
+
+### Empty Backups
+
+A valid backup may contain empty preset and session arrays.
+
+Importing an empty backup removes all current presets and sessions after user confirmation.
+
+### Settings
+
+SharedPreferences settings are not included in the JSON backup.
+
+The following preferences remain unchanged during restoration:
+
+- Default focus duration
+- Reminders
+- Reduced motion
+- Sound
+
+### Limitations
+
+The current format supports version 1 only.
+
+Importing a file with another version is rejected.
+
+The export feature uses the native share sheet rather than writing directly to an arbitrary folder.
+
+The temporary export file is not intended for permanent storage.
+
+Users must save a copy to a location of their choice.
+
+The backup contains study information in plain-text JSON and is not encrypted.
+
+Users should store backup files securely.
+
+## 11. Session Scout Recommendation System
 
 Session Scout is a deterministic, rule-based recommendation algorithm.
 
@@ -453,9 +662,9 @@ It is a simple, explainable recommendation system.
 
 Session mood is determined through the preset associated with each session.
 
-Changing a preset's mood can therefore affect how previous sessions are grouped.
+Changing a preset's mood can affect how previous sessions are grouped.
 
-## 11. Session Scout Evaluation
+## 12. Session Scout Evaluation
 
 EvaluateSessionScout compares Session Scout against a fixed 25-minute baseline.
 
@@ -512,13 +721,13 @@ These results demonstrate the evaluation method and do not establish real-world 
 
 See AI_FEATURE.md for the full evaluation.
 
-## 12. Custom Animations
+## 13. Custom Animations
 
 The application uses implicit and explicit Flutter animations.
 
 ### Implicit Animation
 
-AnimatedSize is used to animate the Session Scout recommendation panel.
+AnimatedSize animates the Session Scout recommendation panel.
 
 AppMotion defines reusable animation durations and curves.
 
@@ -548,7 +757,7 @@ When reduced motion is enabled:
 - Decorative focus indicator animation is disabled.
 - Custom panel transition duration becomes zero.
 
-## 13. Responsive Layout
+## 14. Responsive Layout
 
 The application supports different screen sizes.
 
@@ -570,7 +779,7 @@ Screens narrower than 700 pixels use NavigationBar.
 
 Screens at least 700 pixels wide use NavigationRail.
 
-## 14. Background Statistics Processing
+## 15. Background Statistics Processing
 
 ### Purpose
 
@@ -681,7 +890,7 @@ The implementation demonstrates background processing for larger workloads.
 
 SQLite access remains outside the background isolate.
 
-## 15. Testing Strategy
+## 16. Testing Strategy
 
 The project uses unit tests, database tests, widget tests, and provider tests.
 
@@ -762,9 +971,36 @@ The project uses unit tests, database tests, widget tests, and provider tests.
 - Partial status does not trigger notification
 - Preset name is passed correctly
 
-Notification permission and display behavior also require manual testing on Android.
+### JSON Codec Tests
 
-## 16. Development Progress
+- Valid backup encoding
+- Valid backup decoding
+- Empty backups
+- Invalid JSON
+- Unsupported versions
+- Incorrect app name
+- Duplicate IDs
+- Missing preset references
+- Invalid durations
+- Invalid statuses
+- Empty names
+- Unsupported moods
+
+### JSON Backup Service Tests
+
+- Exporting database records
+- Restoring exported data
+- Replacing existing data
+- Preventing duplicate imports
+- Preserving data after invalid JSON
+- Rejecting invalid relationships
+- Restoring empty backups
+
+The backup service tests use an in-memory SQLite database.
+
+They do not modify the application's saved data.
+
+## 17. Development Progress
 
 ### Commits 1-8
 
@@ -802,9 +1038,12 @@ Background statistics processing using Dart isolates, Riverpod integration, and 
 
 Local notifications, Android notification permission, reminder preference integration, and notification controller tests.
 
-## 17. Planned Work
+### Commit 17
 
-- JSON import and export
+JSON backup codec, export and import services, file operations, backup validation, transactional restoration, and automated tests.
+
+## 18. Planned Work
+
 - Additional unit and widget tests
 - Integration testing
 - Test coverage

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/notifications/focus_notification_service.dart';
+import '../providers/focus_backup_provider.dart';
+import '../providers/focus_providers.dart';
 import '../providers/motion_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -21,6 +23,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _soundEnabled = true;
   bool _loading = true;
   bool _saving = false;
+  bool _backupBusy = false;
 
   final FocusNotificationService _notificationService =
       LocalFocusNotificationService();
@@ -64,7 +67,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _saveSettings() async {
-    if (_saving) return;
+    if (_saving || _backupBusy) return;
 
     setState(() => _saving = true);
 
@@ -121,7 +124,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           content: Text('Settings saved.'),
         ),
       );
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -136,6 +139,117 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _exportBackup() async {
+    if (_backupBusy || _saving) return;
+
+    setState(() => _backupBusy = true);
+
+    try {
+      await ref.read(focusBackupServiceProvider).exportToFile();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Backup prepared. Save a copy using the share sheet.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to export backup.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _backupBusy = false);
+      }
+    }
+  }
+
+  Future<void> _importBackup() async {
+    if (_backupBusy || _saving) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Restore Backup?'),
+        content: const Text(
+          'Importing a backup will replace all current '
+          'focus presets and session history. '
+          'This cannot be undone unless you have another backup. '
+          'Export your current data first if you want to keep it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || confirmed != true) return;
+
+    setState(() => _backupBusy = true);
+
+    try {
+      final result = await ref
+          .read(focusBackupServiceProvider)
+          .pickAndImport();
+
+      if (!mounted) return;
+
+      if (result == null) {
+        return;
+      }
+
+      ref.invalidate(focusPresetsProvider);
+      ref.invalidate(sessionHistoryProvider);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Backup restored: ${result.presetCount} presets '
+            'and ${result.sessionCount} sessions.',
+          ),
+        ),
+      );
+    } on FormatException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invalid backup: ${error.message}'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unable to restore backup. Existing data was not changed.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _backupBusy = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -145,6 +259,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       );
     }
+
+    final busy = _saving || _backupBusy;
 
     return Scaffold(
       appBar: AppBar(
@@ -171,7 +287,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               max: 60,
               divisions: 50,
               label: '${_defaultDuration.round()} min',
-              onChanged: _saving
+              onChanged: busy
                   ? null
                   : (value) {
                       setState(() => _defaultDuration = value);
@@ -184,7 +300,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 'Notify me when a focus session finishes.',
               ),
               value: _remindersEnabled,
-              onChanged: _saving
+              onChanged: busy
                   ? null
                   : (value) {
                       setState(() => _remindersEnabled = value);
@@ -196,7 +312,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 'Disable decorative animations.',
               ),
               value: _reduceMotion,
-              onChanged: _saving
+              onChanged: busy
                   ? null
                   : (value) {
                       setState(() => _reduceMotion = value);
@@ -208,7 +324,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 'Save your sound preference.',
               ),
               value: _soundEnabled,
-              onChanged: _saving
+              onChanged: busy
                   ? null
                   : (value) {
                       setState(() => _soundEnabled = value);
@@ -216,11 +332,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: _saving ? null : _saveSettings,
+              onPressed: busy ? null : _saveSettings,
               child: Text(
                 _saving ? 'Saving...' : 'Save Settings',
               ),
             ),
+            const SizedBox(height: 32),
+            const Divider(),
+            const SizedBox(height: 16),
+            const Text(
+              'Data Backup',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Export your focus presets and study history '
+              'to a JSON file, or restore a previous backup.',
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Restoring a backup replaces your current '
+              'presets and session history. Settings are not included.',
+            ),
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: busy ? null : _exportBackup,
+              icon: const Icon(Icons.file_upload_outlined),
+              label: const Text('Export JSON Backup'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: busy ? null : _importBackup,
+              icon: const Icon(Icons.file_download_outlined),
+              label: const Text('Import JSON Backup'),
+            ),
+            if (_backupBusy) ...[
+              const SizedBox(height: 16),
+              const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ],
           ],
         ),
       ),

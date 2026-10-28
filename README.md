@@ -20,6 +20,10 @@ Isaac Owusu
 - sqflite_common_ffi for database testing
 - Dart Isolates
 - flutter_local_notifications
+- file_picker
+- share_plus
+- cross_file
+- path_provider
 
 ## Features
 
@@ -96,7 +100,7 @@ Users can configure:
 
 Settings are stored locally using SharedPreferences.
 
-The reduced-motion preference controls the application's custom decorative animations.
+The reduced-motion preference controls the application's decorative animations.
 
 The Reminders setting controls local focus-completion notifications.
 
@@ -110,8 +114,8 @@ Notifications are generated locally and do not require a server or internet conn
 
 The notification feature:
 
-- Initializes the notification plugin when the app starts
-- Requests permission when the user enables reminders
+- Initializes the notification plugin at startup
+- Requests permission when reminders are enabled
 - Stores the reminder preference in SharedPreferences
 - Checks the reminder preference before notifying
 - Sends a notification after a naturally completed session is saved
@@ -127,9 +131,124 @@ Body: You finished your Morning Study focus session.
 
 On Android 13 and later, the app requests notification permission.
 
-The notification feature uses immediate local notifications rather than scheduled notifications.
+The implementation uses immediate notifications rather than scheduled notifications.
 
-The timer must remain active long enough to detect completion. This implementation does not guarantee a notification if the operating system suspends or terminates the application before the countdown ends.
+The timer must remain active to detect completion. Notification delivery is not guaranteed if the operating system suspends or terminates the application before the countdown ends.
+
+### JSON Backup and Restore
+
+The application supports exporting and importing focus data as JSON files.
+
+The feature is available in Settings under Data Backup.
+
+#### Export Backup
+
+Users can:
+
+1. Open Settings.
+2. Select Export JSON Backup.
+3. Choose where to save or share the JSON file.
+4. Keep the file for future restoration.
+
+The backup includes:
+
+- Focus presets
+- Session logs
+- Preset IDs
+- Session IDs
+- Relationships between presets and sessions
+- Backup format version
+- Export timestamp
+
+The backup does not include SharedPreferences settings.
+
+#### Import Backup
+
+Users can:
+
+1. Open Settings.
+2. Select Import JSON Backup.
+3. Read the replacement warning.
+4. Confirm that they want to continue.
+5. Select a JSON backup file.
+6. Restore the saved presets and sessions.
+
+Importing a backup replaces the current focus presets and session history.
+
+Users should export their current data before importing another backup.
+
+Cancelling file selection leaves existing data unchanged.
+
+#### Backup Validation
+
+The application validates:
+
+- JSON structure
+- Backup format version
+- Application name
+- Export timestamp
+- Required preset fields
+- Supported mood tags
+- Positive preset durations
+- Unique preset IDs
+- Required session fields
+- Valid session dates
+- Non-negative session durations
+- Supported session statuses
+- Unique session IDs
+- Valid preset references
+
+Invalid backups are rejected before database changes begin.
+
+#### Database Transactions
+
+Restoration uses a SQLite transaction.
+
+The application:
+
+1. Validates the backup.
+2. Starts a transaction.
+3. Deletes existing session logs.
+4. Deletes existing focus presets.
+5. Inserts the imported presets.
+6. Inserts the imported session logs.
+7. Commits the transaction.
+
+If a database operation fails, SQLite rolls back the transaction.
+
+Re-importing the same backup does not create duplicate records because restoration replaces the current data.
+
+#### Backup Format
+
+Example:
+
+```json
+{
+  "formatVersion": 1,
+  "app": "Adaptive Focus Studio",
+  "exportedAt": "2026-10-28T17:00:00.000Z",
+  "focusPresets": [
+    {
+      "id": 1,
+      "name": "Morning Study",
+      "moodTag": "Focused",
+      "durationMinutes": 25
+    }
+  ],
+  "sessionLogs": [
+    {
+      "id": 1,
+      "presetId": 1,
+      "date": "2026-10-28T14:00:00.000Z",
+      "completedSeconds": 1500,
+      "status": "completed",
+      "notes": ""
+    }
+  ]
+}
+```
+
+The backup feature works offline.
 
 ### Session Scout
 
@@ -226,8 +345,11 @@ Important providers include:
 - studyStatisticsServiceProvider
 - studyStatisticsProvider
 - reduceMotionProvider
+- focusBackupServiceProvider
 
 After database changes, the affected providers are invalidated so the UI can display updated information.
+
+After a backup is restored, the preset and session history providers are invalidated.
 
 SQLite remains responsible for persistent data storage.
 
@@ -245,7 +367,7 @@ Contains entities, repository interfaces, and use cases.
 
 ### Data Layer
 
-Contains SQLite models, database helpers, repository implementations, and the background statistics service.
+Contains SQLite models, database helpers, repository implementations, background statistics processing, and JSON backup services.
 
 The notification service is implemented under core because it is a platform-related service shared by the application.
 
@@ -278,6 +400,8 @@ Columns:
 The session_logs table references focus_presets through a foreign key.
 
 Deleting a preset also deletes its associated session logs through cascade deletion.
+
+No database migration is required for the JSON backup feature.
 
 ## Running the Application
 
@@ -318,9 +442,30 @@ For testing notifications:
 8. Let the timer finish naturally.
 9. Check that the session is saved and a notification appears.
 
-Pressing Finish early should save a partial session without sending a completion notification.
+### Testing JSON Backup and Restore
 
-Turning Reminders off should prevent notifications.
+1. Create two or more focus presets.
+2. Complete a study session.
+3. Open Settings.
+4. Select Export JSON Backup.
+5. Save the exported JSON file.
+6. Create an additional preset.
+7. Select Import JSON Backup.
+8. Confirm the replacement warning.
+9. Select the previously exported file.
+10. Check that the original presets and sessions are restored.
+11. Check that the additional preset has been removed.
+12. Import the same backup again and verify that no duplicate records appear.
+
+Also test:
+
+- Cancelling file selection
+- Importing invalid JSON
+- Importing an unsupported backup version
+- Importing a backup with an invalid preset reference
+- Importing an empty backup
+
+An empty backup intentionally removes all presets and sessions after confirmation.
 
 ## Testing
 
@@ -384,15 +529,19 @@ flutter test test/features/focus/data/study_statistics_service_test.dart
 flutter test test/core/notifications/focus_notification_controller_test.dart
 ```
 
-The notification controller tests verify:
+### JSON Codec Tests
 
-- Natural completion triggers a notification
-- Early completion does not trigger a notification
-- Manual completion does not trigger a notification
-- Partial sessions do not trigger notifications
-- Preset names are passed correctly
+```bash
+flutter test test/features/focus/data/services/focus_backup_codec_test.dart
+```
 
-Real notification permission and display behavior must also be tested on Android.
+### JSON Backup Service Tests
+
+```bash
+flutter test test/features/focus/data/services/focus_backup_service_test.dart
+```
+
+The backup tests use an in-memory SQLite database and do not modify the application's saved data.
 
 ## Development Progress
 
@@ -466,9 +615,19 @@ Real notification permission and display behavior must also be tested on Android
 - Focus Timer completion notification
 - Notification controller tests
 
+### Commit 17
+
+- JSON backup codec
+- JSON export and import service
+- File selection and native sharing
+- Backup validation
+- Transactional SQLite restoration
+- Duplicate prevention through replacement
+- Settings screen integration
+- JSON and database tests
+
 ## Planned Features
 
-- JSON import and export
 - Additional unit and widget tests
 - Integration testing
 - Test coverage
