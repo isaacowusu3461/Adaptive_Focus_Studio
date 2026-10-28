@@ -49,18 +49,14 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     ];
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  void _selectTab(int index) {
+    setState(() => _selectedIndex = index);
 
     if (index == 0) {
       ref.invalidate(focusPresetsProvider);
       ref.invalidate(sessionHistoryProvider);
       _dashboardKey.currentState?.reload();
-    }
-
-    if (index == 1) {
+    } else if (index == 1) {
       ref.invalidate(sessionHistoryProvider);
       _historyKey.currentState?.reload();
     }
@@ -68,14 +64,51 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final wideScreen = MediaQuery.sizeOf(context).width >= 700;
+
+    final content = IndexedStack(
+      index: _selectedIndex,
+      children: _screens,
+    );
+
+    if (wideScreen) {
+      return Scaffold(
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _selectTab,
+              labelType: NavigationRailLabelType.all,
+              destinations: const [
+                NavigationRailDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: Text('Dashboard'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.history_outlined),
+                  selectedIcon: Icon(Icons.history),
+                  label: Text('History'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: Text('Settings'),
+                ),
+              ],
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: content),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
-      ),
+      body: content,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped,
+        onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),

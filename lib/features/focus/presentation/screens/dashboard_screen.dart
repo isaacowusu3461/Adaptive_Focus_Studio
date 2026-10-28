@@ -2,11 +2,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/animation/app_motion.dart';
+import '../../../../core/widgets/animated_focus_indicator.dart';
+import '../../../../core/widgets/responsive_content.dart';
 import '../../domain/entities/focus_preset.dart';
 import '../../domain/entities/session_log.dart';
 import '../../domain/entities/session_scout_recommendation.dart';
 import '../providers/focus_dependencies.dart';
 import '../providers/focus_providers.dart';
+import '../providers/motion_provider.dart';
 import 'focus_timer_screen.dart';
 import 'preset_form_screen.dart';
 
@@ -54,9 +58,7 @@ class DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
     );
 
-    if (mounted && saved == true) {
-      reload();
-    }
+    if (mounted && saved == true) reload();
   }
 
   Future<void> _startPreset(FocusPreset preset) async {
@@ -70,9 +72,7 @@ class DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
     );
 
-    if (mounted) {
-      reload();
-    }
+    if (mounted) reload();
   }
 
   Future<void> _confirmDelete(FocusPreset preset) async {
@@ -99,7 +99,7 @@ class DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!mounted || confirmed != true) return;
 
     setState(() => _isDeleting = true);
 
@@ -109,19 +109,20 @@ class DashboardScreenState extends ConsumerState<DashboardScreen> {
       if (!mounted) return;
 
       reload();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('"${preset.name}" was deleted.')),
       );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to delete preset.')),
+          const SnackBar(
+            content: Text('Unable to delete preset.'),
+          ),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isDeleting = false);
-      }
+      if (mounted) setState(() => _isDeleting = false);
     }
   }
 
@@ -177,13 +178,11 @@ class DashboardScreenState extends ConsumerState<DashboardScreen> {
         durationMinutes: recommendation.suggestedMinutes,
       );
 
-      if (updated == 0) {
-        throw StateError('Preset not found.');
-      }
-
+      if (updated == 0) throw StateError('Preset not found.');
       if (!mounted) return;
 
       reload();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -262,62 +261,78 @@ class DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
     }
 
-    return Column(
-      children: filtered.map((preset) {
-        return Card(
-          key: ValueKey('preset_${preset.id}'),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  preset.name,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 650 ? 2 : 1;
+        final cardWidth = columns == 2
+            ? (constraints.maxWidth - 12) / 2
+            : constraints.maxWidth;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: filtered.map((preset) {
+            return SizedBox(
+              width: cardWidth,
+              child: Card(
+                key: ValueKey('preset_${preset.id}'),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        preset.name,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Mood: ${preset.moodTag}'),
+                      Text(
+                        'Duration: ${preset.durationMinutes} minutes',
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _isDeleting
+                                ? null
+                                : () => _openPresetForm(preset: preset),
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Edit'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _isDeleting
+                                ? null
+                                : () => _confirmDelete(preset),
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Delete'),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _isDeleting
+                                ? null
+                                : () => _startPreset(preset),
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Start'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text('Mood: ${preset.moodTag}'),
-                Text('Duration: ${preset.durationMinutes} minutes'),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _isDeleting
-                          ? null
-                          : () => _openPresetForm(preset: preset),
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('Edit'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _isDeleting
-                          ? null
-                          : () => _confirmDelete(preset),
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('Delete'),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _isDeleting
-                          ? null
-                          : () => _startPreset(preset),
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Start'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          }).toList(),
         );
-      }).toList(),
+      },
     );
   }
 
-  Widget _buildSessionScout() {
+  Widget _buildSessionScout(bool reduceMotion) {
     final recommendationState = _showRecommendation
         ? ref.watch(sessionScoutProvider(_scoutMood))
         : null;
@@ -328,9 +343,21 @@ class DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Get a study duration recommendation '
-              'based on your recent sessions.',
+            Row(
+              children: [
+                AnimatedFocusIndicator(
+                  isActive: _showRecommendation,
+                  reduceMotion: reduceMotion,
+                  size: 48,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Get a study duration recommendation '
+                    'based on your recent sessions.',
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
@@ -364,73 +391,102 @@ class DashboardScreenState extends ConsumerState<DashboardScreen> {
               icon: const Icon(Icons.auto_awesome),
               label: const Text('Get Recommendation'),
             ),
-            if (recommendationState != null) ...[
-              const SizedBox(height: 16),
-              recommendationState.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(),
-                ),
-                error: (error, stackTrace) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Unable to generate a recommendation.'),
-                    TextButton(
-                      onPressed: () {
-                        ref.invalidate(
-                          sessionScoutProvider(_scoutMood),
-                        );
-                      },
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-                data: (recommendation) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Divider(),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Suggested Duration: '
-                      '${recommendation.suggestedMinutes} minutes',
-                      key: const ValueKey('scout_result'),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+            AnimatedSize(
+              duration: AppMotion.duration(
+                AppMotion.medium,
+                reduceMotion: reduceMotion,
+              ),
+              curve: AppMotion.standardCurve,
+              alignment: Alignment.topCenter,
+              child: _showRecommendation
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: _buildRecommendationResult(
+                        recommendationState!,
+                        reduceMotion,
                       ),
+                    )
+                  : const SizedBox(
+                      key: ValueKey('scout_hidden'),
+                      width: double.infinity,
                     ),
-                    const SizedBox(height: 12),
-                    Text(recommendation.explanation),
-                    const SizedBox(height: 12),
-                    Text('Sessions Used: ${recommendation.sessionsUsed}'),
-                    if (recommendation.usedFallback)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Using the standard duration until '
-                          'more study history is available.',
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 12,
-                      children: [
-                        ElevatedButton(
-                          onPressed: () =>
-                              _applyRecommendation(recommendation),
-                          child: const Text('Apply'),
-                        ),
-                        OutlinedButton(
-                          onPressed: () {
-                            setState(() => _showRecommendation = false);
-                          },
-                          child: const Text('Not now'),
-                        ),
-                      ],
-                    ),
-                  ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecommendationResult(
+    AsyncValue<SessionScoutRecommendation> state,
+    bool reduceMotion,
+  ) {
+    return state.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(),
+      ),
+      error: (error, stackTrace) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Unable to generate a recommendation.'),
+          TextButton(
+            onPressed: () {
+              ref.invalidate(sessionScoutProvider(_scoutMood));
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+      data: (recommendation) => AnimatedOpacity(
+        opacity: 1,
+        duration: AppMotion.duration(
+          AppMotion.short,
+          reduceMotion: reduceMotion,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(),
+            const SizedBox(height: 12),
+            Text(
+              'Suggested Duration: '
+              '${recommendation.suggestedMinutes} minutes',
+              key: const ValueKey('scout_result'),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(recommendation.explanation),
+            const SizedBox(height: 12),
+            Text('Sessions Used: ${recommendation.sessionsUsed}'),
+            if (recommendation.usedFallback)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Using the standard duration until '
+                  'more study history is available.',
                 ),
               ),
-            ],
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                ElevatedButton(
+                  onPressed: () =>
+                      _applyRecommendation(recommendation),
+                  child: const Text('Apply'),
+                ),
+                OutlinedButton(
+                  onPressed: () {
+                    setState(() => _showRecommendation = false);
+                  },
+                  child: const Text('Not now'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -441,91 +497,106 @@ class DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final presetsState = ref.watch(focusPresetsProvider);
     final sessionsState = ref.watch(sessionHistoryProvider);
+    final reduceMotion =
+    ref.watch(reduceMotionProvider).when(
+      data: (value) => value,
+      loading: () => false,
+      error: (error, stackTrace) => false,
+    );
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Adaptive Focus Studio'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text(
-            'Study Summary',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          sessionsState.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(),
+      body: ResponsiveContent(
+        child: ListView(
+          children: [
+            const Text(
+              'Study Summary',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            error: (error, stackTrace) => TextButton(
-              onPressed: () => ref.invalidate(sessionHistoryProvider),
-              child: const Text('Retry Loading Summary'),
+            const SizedBox(height: 12),
+            sessionsState.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(),
+              ),
+              error: (error, stackTrace) => TextButton(
+                onPressed: () =>
+                    ref.invalidate(sessionHistoryProvider),
+                child: const Text('Retry Loading Summary'),
+              ),
+              data: _buildSummary,
             ),
-            data: _buildSummary,
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Expanded(
-                child: Text(
-                  'My Focus Presets',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'My Focus Presets',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
+                ElevatedButton.icon(
+                  onPressed: _isDeleting
+                      ? null
+                      : () => _openPresetForm(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('New'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('mood_filter'),
+              initialValue: _selectedMood,
+              decoration: const InputDecoration(
+                labelText: 'Filter by Mood',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.filter_list),
               ),
-              ElevatedButton.icon(
-                onPressed: _isDeleting
-                    ? null
-                    : () => _openPresetForm(),
-                icon: const Icon(Icons.add),
-                label: const Text('New'),
+              items: _moods.map((mood) {
+                return DropdownMenuItem(
+                  value: mood,
+                  child: Text(mood),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedMood = value);
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            presetsState.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(),
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            key: const ValueKey('mood_filter'),
-            initialValue: _selectedMood,
-            decoration: const InputDecoration(
-              labelText: 'Filter by Mood',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.filter_list),
+              error: (error, stackTrace) => TextButton(
+                onPressed: () =>
+                    ref.invalidate(focusPresetsProvider),
+                child: const Text('Retry Loading Presets'),
+              ),
+              data: _buildPresetList,
             ),
-            items: _moods.map((mood) {
-              return DropdownMenuItem(
-                value: mood,
-                child: Text(mood),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _selectedMood = value);
-              }
-            },
-          ),
-          const SizedBox(height: 16),
-          presetsState.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(),
+            const SizedBox(height: 24),
+            const Text(
+              'Session Scout',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            error: (error, stackTrace) => TextButton(
-              onPressed: () => ref.invalidate(focusPresetsProvider),
-              child: const Text('Retry Loading Presets'),
-            ),
-            data: _buildPresetList,
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Session Scout',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          _buildSessionScout(),
-        ],
+            const SizedBox(height: 12),
+            _buildSessionScout(reduceMotion),
+          ],
+        ),
       ),
     );
   }
