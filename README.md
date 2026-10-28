@@ -1,12 +1,9 @@
 
 # Adaptive Focus Studio
 
-Adaptive Focus Studio is a Flutter mobile application
-for organizing focus sessions, tracking study progress,
-and recommending personalized study durations.
+Adaptive Focus Studio is a Flutter mobile application for organizing focus sessions, tracking study progress, and recommending personalized study durations.
 
-Developed for CSC 6360 - Mobile App Development
-at Georgia State University.
+Developed for CSC 6360 - Mobile App Development at Georgia State University.
 
 ## Developer
 
@@ -21,200 +18,423 @@ Isaac Owusu
 - Material Design 3
 - intl
 - sqflite_common_ffi for database testing
+- Dart Isolates for background processing
 
 ## Features
 
 ### Focus Presets
 
-- Create, edit, and delete focus presets
+Users can create and manage focus presets for different study activities.
+
+Features include:
+
+- Create new focus presets
+- Edit existing presets
+- Delete presets with confirmation
 - Filter presets by mood
 - Save presets locally using SQLite
 
 Supported moods:
+
 - Focused
 - Relaxed
 - Motivated
 
+Each preset contains a name, mood tag, and focus duration.
+
 ### Focus Timer
 
-- Start, pause, and resume focus sessions
-- Finish sessions early
+The Focus Timer allows users to run study sessions using their saved presets.
+
+Features include:
+
+- Start a focus session
+- Pause and resume the timer
+- Finish a session early
 - Reset the timer
-- Save completed and partial sessions
+- Automatically save completed sessions
+- Save partially completed sessions
+
+Session records are stored in SQLite.
 
 ### History & Insights
 
-- View study session history
+The History screen displays previously recorded study sessions.
+
+Users can:
+
+- View saved session logs
 - Add manual session logs
-- Edit and delete session logs
-- View completed-session count
-- View total study time
-- View average session duration
+- Edit existing session logs
+- Delete session logs
+- View study statistics
+
+The application calculates:
+
+- Total number of sessions
+- Completed sessions
+- Partial sessions
+- Total study time
+- Average session duration
+- Longest session duration
+- Completion rate
+
+These statistics are calculated using a background Dart isolate.
 
 ### Settings
+
+Users can configure the following preferences:
 
 - Default focus duration
 - Reminder preference
 - Reduced-motion preference
 - Sound preference
-- Persistent settings using SharedPreferences
 
-Reminder and sound settings currently save preferences.
-Their functional integrations are planned for later work.
+Settings are stored locally using SharedPreferences.
+
+The reduced-motion preference is connected to the application's custom animations.
+
+Reminder and sound settings currently save user preferences. Their functional integrations are planned for later commits.
 
 ### Session Scout
 
-Session Scout recommends a study duration using
-the three most recent completed sessions matching
-the selected mood.
+Session Scout is a rule-based recommendation feature that suggests a focus duration based on the user's previous study sessions.
 
-It calculates the median duration, rounds to the
-nearest minute, and limits the result to 10-60 minutes.
+The user selects a mood, and Session Scout finds the three most recent completed sessions matching that mood.
 
-When there is insufficient history, it recommends
-25 minutes.
+It then:
 
-Users can apply the recommendation to a matching
-focus preset or dismiss it.
+1. Retrieves the matching completed sessions.
+2. Selects the three most recent sessions.
+3. Calculates the median completed duration.
+4. Rounds the median to the nearest whole minute.
+5. Limits the recommendation to 10-60 minutes.
+6. Displays the suggested duration with an explanation.
+
+If fewer than three completed sessions are available, Session Scout recommends the standard 25-minute duration.
+
+Users can apply the recommendation to an existing focus preset or dismiss it.
+
+Session Scout works entirely offline and does not use a trained machine learning model or external AI service.
 
 ### Session Scout Evaluation
 
-Session Scout is compared with a fixed 25-minute
-baseline using synthetic evaluation cases.
+Session Scout is evaluated against a fixed 25-minute baseline.
 
-The evaluation calculates absolute errors and
-mean absolute error (MAE).
+The evaluation compares the predicted study durations against target durations using synthetic test cases.
 
-Synthetic results:
-- Session Scout MAE: 2.33 minutes
-- Baseline MAE: 13.00 minutes
-- Relative MAE reduction: approximately 82.05%
+Metrics include:
 
-These results demonstrate the evaluation method
-and do not prove real-world superiority.
+- Absolute prediction error
+- Mean absolute error (MAE)
+- Relative MAE reduction
 
-See AI_FEATURE.md for details.
+Results from six synthetic evaluation cases:
+
+| Metric | Session Scout | Fixed Baseline |
+|--------|---------------|----------------|
+| Mean Absolute Error | 2.33 minutes | 13.00 minutes |
+| Relative MAE Reduction | 82.05% | - |
+
+These results demonstrate the evaluation process. They do not establish that Session Scout performs better with real-world study data.
+
+See [AI_FEATURE.md](AI_FEATURE.md) for the complete explanation, evaluation results, and limitations.
 
 ### Animations and Responsive Layouts
 
-The application includes:
-- Animated Session Scout panel expansion
-- Explicit pulsing focus indicator
-- Responsive preset card layout
+The application includes custom animations and responsive layouts.
+
+Implemented features:
+
+- Animated Session Scout recommendation panel
+- Explicit focus indicator animation
+- Responsive preset cards
 - Centered content on larger screens
 - Bottom navigation on phones
 - Navigation rail on wider screens
+- Reduced-motion support
+
+The focus indicator uses an AnimationController and performs a short animation when activated.
+
+The controller is disposed when the widget is removed.
+
+When reduced motion is enabled, decorative animation is disabled and the custom panel transition duration becomes zero.
+
+### Background Statistics Processing
+
+Study statistics are calculated in a background Dart isolate using `Isolate.run()`.
+
+This feature moves the calculation work away from Flutter's main UI isolate.
+
+The implementation follows these steps:
+
+1. Load session records from SQLite.
+2. Retrieve the records through the Riverpod session history provider.
+3. Convert the session records into simple data containing status and duration.
+4. Pass the data to a background isolate.
+5. Calculate the study statistics.
+6. Return the results to the main isolate.
+7. Display the statistics on the Dashboard and History screens.
+
+The background calculation includes:
+
+- Total sessions
+- Completed sessions
+- Partial sessions
+- Total study duration
+- Average session duration
+- Longest session
+- Completion rate
+
+Both the Dashboard and History screens use the same statistics provider.
+
+When session history changes, Riverpod recalculates the statistics.
+
+Using an isolate can introduce overhead for small datasets. This implementation demonstrates background processing that can be useful for larger calculations.
+
+## State Management
+
+The application uses Riverpod for state management and dependency injection.
+
+Riverpod manages:
+
+- Repository dependencies
+- Use case dependencies
+- Focus preset lists
+- Session history
+- Session Scout recommendations
+- Study statistics
 - Reduced-motion preference
 
-The pulsing indicator uses an AnimationController
-and disposes it when removed.
+Important providers include:
 
-Reduced motion disables the custom decorative
-animation and removes the panel transition duration.
+- `focusDependenciesProvider`
+- `focusPresetRepositoryProvider`
+- `sessionLogRepositoryProvider`
+- `focusPresetsProvider`
+- `sessionHistoryProvider`
+- `sessionScoutProvider`
+- `studyStatisticsServiceProvider`
+- `studyStatisticsProvider`
+- `reduceMotionProvider`
 
-## Riverpod State Management
+After database changes, the relevant providers are invalidated so the UI can display updated information.
 
-Riverpod manages repositories, use cases,
-saved presets, session history, and
-Session Scout recommendations.
-
-The application invalidates providers after
-database changes to reload the affected data.
-
-SQLite remains responsible for permanent storage.
+SQLite remains responsible for persistent data storage.
 
 ## Architecture
 
-The application follows clean architecture:
+The application follows clean architecture with three main layers.
 
-- Presentation: Flutter screens and Riverpod providers
-- Domain: Entities, interfaces, and use cases
-- Data: SQLite models and repository implementations
+### Presentation Layer
 
-See ARCHITECTURE.md for details.
+Contains Flutter screens, reusable widgets, and Riverpod providers.
+
+### Domain Layer
+
+Contains entities, repository interfaces, and use cases.
+
+### Data Layer
+
+Contains SQLite models, database helpers, repository implementations, and the background statistics service.
+
+The application is designed to work offline.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for more information.
 
 ## Database
 
-Tables:
-- focus_presets
-- session_logs
+The application uses SQLite with two related tables.
 
-Deleting a preset also deletes its related
-session logs through foreign-key cascade deletion.
+### focus_presets
+
+Columns:
+
+- id
+- name
+- mood_tag
+- duration_minutes
+
+### session_logs
+
+Columns:
+
+- id
+- preset_id
+- date
+- completed_seconds
+- status
+- notes
+
+The session_logs table references focus_presets through a foreign key.
+
+Deleting a preset also deletes its associated session logs through cascade deletion.
 
 ## Running the Application
 
-Install packages:
+### Requirements
 
-    flutter pub get
+- Flutter SDK
+- Dart SDK
+- Android Studio or VS Code
+- Android emulator or supported physical device
 
-Run:
+### Install Dependencies
 
-    flutter run
+```bash
+flutter pub get
+```
+
+### Run the Application
+
+```bash
+flutter run
+```
 
 ## Testing
 
-Format:
+### Format Code
 
-    dart format lib test
+```bash
+dart format lib test
+```
 
-Analyze:
+### Static Analysis
 
-    flutter analyze
+```bash
+flutter analyze
+```
 
-Run all tests:
+### Run All Tests
 
-    flutter test
+```bash
+flutter test
+```
 
-Run animation tests:
+### Widget Tests
 
-    flutter test test/core/animation/animated_focus_indicator_test.dart
+```bash
+flutter test test/widget_test.dart
+```
 
-Run responsive layout tests:
+### Riverpod Tests
 
-    flutter test test/core/widgets/responsive_content_test.dart
+```bash
+flutter test test/features/focus/presentation/focus_providers_test.dart
+```
 
-Run Riverpod tests:
+### Session Scout Algorithm Tests
 
-    flutter test test/features/focus/presentation/focus_providers_test.dart
+```bash
+flutter test test/features/focus/domain/calculate_session_scout_test.dart
+```
 
-Run widget tests:
+### Session Scout Evaluation Tests
 
-    flutter test test/widget_test.dart
+```bash
+flutter test test/features/focus/domain/evaluate_session_scout_test.dart
+```
+
+### Animation Tests
+
+```bash
+flutter test test/core/animation/animated_focus_indicator_test.dart
+```
+
+### Responsive Layout Tests
+
+```bash
+flutter test test/core/widgets/responsive_content_test.dart
+```
+
+### Statistics Calculation Tests
+
+```bash
+flutter test test/features/focus/domain/calculate_study_statistics_test.dart
+```
+
+### Background Isolate Tests
+
+```bash
+flutter test test/features/focus/data/study_statistics_service_test.dart
+```
+
+The statistics tests cover empty histories, completed and partial sessions, total duration, averages, longest sessions, completion rate, invalid inputs, and calculations through `Isolate.run()`.
 
 ## Development Progress
 
-Commits 1-8:
-Project setup, clean architecture, SQLite,
-and focus preset management.
+### Commits 1-8
 
-Commit 9:
-Timer, history, statistics, and settings.
+- Flutter project initialization
+- Clean architecture setup
+- Domain entities and models
+- SQLite database integration
+- Focus preset CRUD operations
+- Mood filtering
 
-Commit 10:
-Session Scout algorithm.
+### Commit 9
 
-Commit 11:
-Session Scout Dashboard integration.
+- Focus Timer
+- Session history
+- Manual session logging
+- Study statistics
+- Persistent settings
 
-Commit 12:
-Session Scout evaluation.
+### Commit 10
 
-Commit 13:
-Riverpod state management.
+- Session Scout recommendation algorithm
+- Median-based duration calculation
+- Fallback recommendation
+- Algorithm unit tests
 
-Commit 14:
-Animations, responsive layouts,
-and reduced-motion support.
+### Commit 11
+
+- Session Scout Dashboard integration
+- Mood selection
+- Recommendation display
+- Apply and Not now actions
+
+### Commit 12
+
+- Session Scout evaluation
+- Fixed 25-minute baseline comparison
+- Mean absolute error calculation
+- Evaluation documentation
+
+### Commit 13
+
+- Riverpod dependency injection
+- Asynchronous data providers
+- Dashboard and History integration
+- Provider tests
+
+### Commit 14
+
+- Custom animations
+- Responsive layouts
+- Navigation rail for larger screens
+- Reduced-motion support
+- Animation and layout tests
+
+### Commit 15
+
+- Background statistics processing using Dart isolates
+- StudyStatistics domain entity
+- Pure Dart statistics calculation
+- StudyStatisticsService using Isolate.run()
+- Riverpod statistics provider
+- Dashboard and History integration
+- Statistics unit tests
+- Isolate service tests
 
 ## Planned Features
 
-- Background statistics processing using isolates
 - Local notifications
 - JSON import and export
 - Additional unit and widget tests
 - Integration testing
-- Coverage and final documentation
+- Test coverage
+- Final documentation and project polish
 
 ## GitHub
 

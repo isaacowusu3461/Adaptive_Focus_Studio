@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../domain/entities/focus_preset.dart';
 import '../../domain/entities/session_log.dart';
+import '../../domain/entities/study_statistics.dart';
 import '../providers/focus_dependencies.dart';
 import '../providers/focus_providers.dart';
+import '../providers/study_statistics_provider.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   final FocusDependencies dependencies;
@@ -25,16 +28,21 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
     ref.invalidate(sessionHistoryProvider);
   }
 
-  Future<void> _showSessionForm({SessionLog? session}) async {
-    List<dynamic> presets;
+  Future<void> _showSessionForm({
+    SessionLog? session,
+  }) async {
+    List<FocusPreset> presets;
 
     try {
-      presets =
-          await ref.read(focusPresetRepositoryProvider).getAllPresets();
+      presets = await ref
+          .read(focusPresetRepositoryProvider)
+          .getAllPresets();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to load presets.')),
+          const SnackBar(
+            content: Text('Unable to load presets.'),
+          ),
         );
       }
       return;
@@ -44,7 +52,9 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     if (presets.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Create a focus preset first.')),
+        const SnackBar(
+          content: Text('Create a focus preset first.'),
+        ),
       );
       return;
     }
@@ -54,7 +64,7 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
     int selectedId =
         session != null && presetIds.contains(session.presetId)
             ? session.presetId
-            : presets.first.id as int;
+            : presets.first.id!;
 
     final durationController = TextEditingController(
       text: session == null
@@ -97,8 +107,8 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
                             ),
                             items: presets.map((preset) {
                               return DropdownMenuItem<int>(
-                                value: preset.id as int,
-                                child: Text(preset.name as String),
+                                value: preset.id!,
+                                child: Text(preset.name),
                               );
                             }).toList(),
                             onChanged: saving
@@ -132,6 +142,7 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
                                   (minutes * 60).round() == 0) {
                                 return 'Enter a duration above 0 and up to 180';
                               }
+
                               return null;
                             },
                           ),
@@ -154,7 +165,9 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
                                 ? null
                                 : (value) {
                                     if (value != null) {
-                                      setDialogState(() => status = value);
+                                      setDialogState(() {
+                                        status = value;
+                                      });
                                     }
                                   },
                           ),
@@ -175,7 +188,10 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
                   TextButton(
                     onPressed: saving
                         ? null
-                        : () => Navigator.pop(dialogContext, false),
+                        : () => Navigator.pop(
+                              dialogContext,
+                              false,
+                            ),
                     child: const Text('Cancel'),
                   ),
                   ElevatedButton(
@@ -186,7 +202,9 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
                               return;
                             }
 
-                            setDialogState(() => saving = true);
+                            setDialogState(() {
+                              saving = true;
+                            });
 
                             try {
                               final seconds = (double.parse(
@@ -231,7 +249,9 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
                                     ),
                                   ),
                                 );
-                                setDialogState(() => saving = false);
+                                setDialogState(() {
+                                  saving = false;
+                                });
                               }
                             }
                           },
@@ -247,7 +267,7 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
       );
 
       if (saved == true && mounted) {
-        ref.invalidate(sessionHistoryProvider);
+        reload();
       }
     } finally {
       durationController.dispose();
@@ -265,11 +285,17 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              false,
+            ),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              true,
+            ),
             child: const Text('Delete'),
           ),
         ],
@@ -284,7 +310,7 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
           .deleteSession(session.id!);
 
       if (mounted) {
-        ref.invalidate(sessionHistoryProvider);
+        reload();
       }
     } catch (_) {
       if (mounted) {
@@ -297,35 +323,41 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
     }
   }
 
-  Widget _buildSummary(List<SessionLog> sessions) {
-    final completed =
-        sessions.where((s) => s.status == 'completed').length;
-
-    final totalSeconds = sessions.fold<int>(
-      0,
-      (sum, session) => sum + session.completedSeconds,
-    );
-
-    final average = sessions.isEmpty
-        ? 0.0
-        : totalSeconds / sessions.length / 60;
-
+  Widget _buildSummary(StudyStatistics statistics) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Completed Sessions: $completed'),
+            Text(
+              'Completed Sessions: '
+              '${statistics.completedSessions}',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Partial Sessions: '
+              '${statistics.partialSessions}',
+            ),
             const SizedBox(height: 8),
             Text(
               'Total Study Time: '
-              '${(totalSeconds / 60).toStringAsFixed(1)} minutes',
+              '${statistics.totalMinutes.toStringAsFixed(1)} minutes',
             ),
             const SizedBox(height: 8),
             Text(
               'Average Duration: '
-              '${average.toStringAsFixed(1)} minutes',
+              '${statistics.averageMinutes.toStringAsFixed(1)} minutes',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Longest Session: '
+              '${statistics.longestSessionMinutes.toStringAsFixed(1)} minutes',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Completion Rate: '
+              '${statistics.completionRate.toStringAsFixed(1)}%',
             ),
           ],
         ),
@@ -338,15 +370,18 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Text('No study sessions recorded yet.'),
+          child: Text(
+            'No study sessions recorded yet.',
+          ),
         ),
       );
     }
 
     return Column(
       children: sessions.map((session) {
-        final date =
-            DateFormat('MMM d, yyyy - h:mm a').format(session.date);
+        final date = DateFormat(
+          'MMM d, yyyy - h:mm a',
+        ).format(session.date);
 
         return Card(
           key: ValueKey('session_${session.id}'),
@@ -375,8 +410,9 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
                   spacing: 8,
                   children: [
                     TextButton.icon(
-                      onPressed: () =>
-                          _showSessionForm(session: session),
+                      onPressed: () => _showSessionForm(
+                        session: session,
+                      ),
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Edit'),
                     ),
@@ -398,6 +434,7 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final history = ref.watch(sessionHistoryProvider);
+    final statistics = ref.watch(studyStatisticsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -424,7 +461,18 @@ class HistoryScreenState extends ConsumerState<HistoryScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            _buildSummary(sessions),
+            statistics.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(),
+              ),
+              error: (error, stackTrace) => TextButton(
+                onPressed: () {
+                  ref.invalidate(studyStatisticsProvider);
+                },
+                child: const Text('Retry Loading Summary'),
+              ),
+              data: _buildSummary,
+            ),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
