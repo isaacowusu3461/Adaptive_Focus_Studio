@@ -1,9 +1,11 @@
 
 # Adaptive Focus Studio
 
-Adaptive Focus Studio is a Flutter mobile application for organizing focus sessions, tracking study progress, and recommending personalized study durations.
+Adaptive Focus Studio is a Flutter mobile application that helps students organize focus sessions, track their study progress, and get personalized study duration recommendations.
 
-Developed for CSC 6360 - Mobile App Development at Georgia State University.
+I developed this application as my graduate solo project for CSC 6360 - Mobile App Development at Georgia State University.
+
+The application works offline and stores user data locally.
 
 ## Developer
 
@@ -22,52 +24,55 @@ Isaac Owusu
 - flutter_local_notifications
 - file_picker
 - share_plus
-- cross_file
 - path_provider
 
-## Features
+## Main Features
 
-### Focus Presets
+### 1. Focus Presets
 
 Users can create and manage focus presets for different study activities.
 
-Features include:
+The application supports:
 
-- Create focus presets
-- Edit existing presets
-- Delete presets with confirmation
-- Filter presets by mood
-- Save presets locally using SQLite
+- Creating new focus presets
+- Editing existing presets
+- Deleting presets with confirmation
+- Filtering presets by mood
+- Saving presets locally using SQLite
 
-Supported moods:
+Each preset contains a name, mood tag, and duration.
+
+Supported mood tags are:
 
 - Focused
 - Relaxed
 - Motivated
 
-Each preset contains a name, mood tag, and focus duration.
+Preset durations must be between 1 and 180 minutes.
 
-### Focus Timer
+### 2. Focus Timer
 
-The Focus Timer allows users to run study sessions using saved presets.
+The Focus Timer allows users to start study sessions using their saved presets.
 
-Features include:
+The timer supports:
 
-- Start a focus session
-- Pause and resume the timer
-- Finish a session early
-- Reset the timer
-- Automatically save completed sessions
-- Save partially completed sessions
-- Retry saving if a database operation fails
+- Starting a session
+- Pausing and resuming
+- Finishing a session early
+- Resetting the timer
+- Saving completed sessions
+- Saving partially completed sessions
+- Retrying failed session saves
 
-The timer uses Stopwatch to measure elapsed time and Timer.periodic to update the countdown display.
+I used Dart's `Stopwatch` to measure elapsed time and `Timer.periodic` to update the countdown display.
+
+The stopwatch provides the elapsed time, while the periodic timer refreshes what the user sees.
 
 Session records are stored in SQLite.
 
-### History & Insights
+### 3. History and Insights
 
-The History screen displays previously recorded study sessions.
+The History screen allows users to review their previous study sessions.
 
 Users can:
 
@@ -89,7 +94,9 @@ The application calculates:
 
 Statistics are calculated using a background Dart isolate.
 
-### Settings
+The Dashboard and History screens use the same statistics provider to display updated information.
+
+### 4. Settings
 
 Users can configure:
 
@@ -100,57 +107,57 @@ Users can configure:
 
 Settings are stored locally using SharedPreferences.
 
-The reduced-motion preference controls the application's decorative animations.
+The reduced-motion preference disables decorative animations where supported.
 
-The Reminders setting controls local focus-completion notifications.
+The reminder preference controls local focus-completion notifications.
 
-The Sound setting is currently stored as a preference. Separate sound functionality has not yet been implemented.
+The sound preference is stored, but separate sound functionality has not been implemented.
 
-### Local Notifications
+### 5. Local Notifications
 
-The application uses flutter_local_notifications to display a notification when a focus session finishes naturally.
-
-Notifications are generated locally and do not require a server or internet connection.
+Adaptive Focus Studio uses `flutter_local_notifications` to notify users when a focus session finishes naturally.
 
 The notification feature:
 
 - Initializes the notification plugin at startup
 - Requests permission when reminders are enabled
-- Stores the reminder preference in SharedPreferences
-- Checks the reminder preference before notifying
+- Saves the reminder preference
+- Checks whether reminders are enabled
 - Sends a notification after a naturally completed session is saved
-- Does not notify when a session is finished early
-- Does not notify when the timer is paused or reset
-- Avoids duplicate notifications for the same timer completion
+- Avoids notifications for sessions finished early
+- Avoids notifications when a timer is paused or reset
+- Prevents duplicate notifications for the same completion
 
 Example notification:
 
-Title: Focus session completed
+**Title:** Focus session completed
 
-Body: You finished your Morning Study focus session.
+**Body:** You finished your Morning Study focus session.
 
-On Android 13 and later, the app requests notification permission.
+On Android 13 and later, notification permission is requested.
 
-The implementation uses immediate notifications rather than scheduled notifications.
+Notifications are generated locally without requiring an internet connection.
 
-The timer must remain active to detect completion. Notification delivery is not guaranteed if the operating system suspends or terminates the application before the countdown ends.
+The application uses immediate notifications rather than scheduled notifications.
 
-### JSON Backup and Restore
+The timer must remain active to detect completion. Notifications may not be delivered if the operating system suspends or terminates the application before the countdown finishes.
 
-The application supports exporting and importing focus data as JSON files.
+### 6. JSON Backup and Restore
 
-The feature is available in Settings under Data Backup.
+The application allows users to export and import their focus data as JSON files.
 
-#### Export Backup
+This feature is available in Settings under Data Backup.
 
-Users can:
+#### Exporting a Backup
+
+To export data:
 
 1. Open Settings.
 2. Select Export JSON Backup.
-3. Choose where to save or share the JSON file.
-4. Keep the file for future restoration.
+3. Choose where to save or share the file.
+4. Keep the JSON file for future restoration.
 
-The backup includes:
+The exported backup contains:
 
 - Focus presets
 - Session logs
@@ -160,28 +167,28 @@ The backup includes:
 - Backup format version
 - Export timestamp
 
-The backup does not include SharedPreferences settings.
+SharedPreferences settings are not included.
 
-#### Import Backup
+#### Importing a Backup
 
-Users can:
+To restore data:
 
 1. Open Settings.
 2. Select Import JSON Backup.
 3. Read the replacement warning.
-4. Confirm that they want to continue.
+4. Confirm the operation.
 5. Select a JSON backup file.
-6. Restore the saved presets and sessions.
+6. Wait for the data to be restored.
 
-Importing a backup replaces the current focus presets and session history.
+Importing a backup replaces the current presets and session history.
 
 Users should export their current data before importing another backup.
 
-Cancelling file selection leaves existing data unchanged.
+Cancelling file selection leaves the existing data unchanged.
 
 #### Backup Validation
 
-The application validates:
+Before importing data, the application validates:
 
 - JSON structure
 - Backup format version
@@ -202,12 +209,12 @@ Invalid backups are rejected before database changes begin.
 
 #### Database Transactions
 
-Restoration uses a SQLite transaction.
+The restore operation uses a SQLite transaction.
 
 The application:
 
 1. Validates the backup.
-2. Starts a transaction.
+2. Starts a database transaction.
 3. Deletes existing session logs.
 4. Deletes existing focus presets.
 5. Inserts the imported presets.
@@ -216,11 +223,9 @@ The application:
 
 If a database operation fails, SQLite rolls back the transaction.
 
-Re-importing the same backup does not create duplicate records because restoration replaces the current data.
+Importing the same backup again does not create duplicate records because the restore operation replaces the existing data.
 
-#### Backup Format
-
-Example:
+#### Example Backup Format
 
 ```json
 {
@@ -250,104 +255,151 @@ Example:
 
 The backup feature works offline.
 
-### Session Scout
+## Session Scout
 
-Session Scout is a rule-based recommendation feature that suggests a focus duration based on previous study sessions.
+Session Scout is a rule-based recommendation feature that suggests a focus duration using previous study sessions.
 
-The user selects a mood, and Session Scout finds the three most recent completed sessions matching that mood.
+It uses completed sessions that match the selected mood.
 
-It then:
+### How It Works
 
-1. Retrieves matching completed sessions.
-2. Selects the three most recent sessions.
-3. Calculates their median completed duration.
-4. Rounds the median to the nearest minute.
-5. Limits the recommendation to 10-60 minutes.
-6. Displays the recommendation and an explanation.
+1. The user selects a mood.
+2. Session Scout retrieves completed sessions matching that mood.
+3. It selects the three most recent matching sessions.
+4. It calculates the median completed duration.
+5. It rounds the result to the nearest minute.
+6. It limits the recommendation to between 10 and 60 minutes.
+7. It displays the recommendation with an explanation.
 
 If fewer than three completed sessions are available, Session Scout recommends 25 minutes.
 
 Users can apply the recommendation to an existing matching focus preset or dismiss it.
 
-Session Scout works offline and does not use a trained machine learning model or external AI service.
+Session Scout runs entirely offline.
+
+It does not use a trained machine learning model or an external AI service.
+
+### Why I Used the Median
+
+I chose the median because it is less affected by unusually long or short study sessions than the mean.
+
+For example, if the three most recent completed sessions lasted 20, 25, and 60 minutes, the median would be 25 minutes.
+
+This gives a more stable recommendation than using the average.
 
 ### Session Scout Evaluation
 
-Session Scout is evaluated against a fixed 25-minute baseline using synthetic cases.
+I evaluated Session Scout against a fixed 25-minute baseline using six synthetic test cases.
 
-Metrics include:
+The evaluation uses:
 
 - Absolute prediction error
 - Mean absolute error (MAE)
 - Relative MAE reduction
 
-Results from six synthetic evaluation cases:
+Results:
 
 | Metric | Session Scout | Fixed Baseline |
-|--------|---------------|----------------|
+|---|---:|---:|
 | Mean Absolute Error | 2.33 minutes | 13.00 minutes |
 | Relative MAE Reduction | 82.05% | - |
 
-These results demonstrate the evaluation process. They do not establish real-world performance.
+These results demonstrate how the evaluation works on the selected synthetic cases.
+
+They do not establish how well the algorithm will perform with real users.
 
 See [AI_FEATURE.md](AI_FEATURE.md) for the complete evaluation and limitations.
 
-### Animations and Responsive Layouts
+## Graduate-Level Extensions
 
-The application includes:
+### 1. Custom Animations
+
+The application includes both implicit and explicit animations.
+
+Examples include:
 
 - Animated Session Scout recommendation panel
-- Explicit focus indicator animation
+- Animated focus indicator
 - Responsive preset cards
+- Reduced-motion support
+
+The focus indicator uses an `AnimationController`.
+
+The controller is disposed when its widget is removed to avoid unnecessary resource usage.
+
+When reduced motion is enabled, decorative animations are disabled and supported custom transitions use zero duration.
+
+### 2. Background Processing
+
+Study statistics are calculated using a Dart isolate through `Isolate.run()`.
+
+The process works as follows:
+
+1. Session records are loaded from SQLite.
+2. Riverpod retrieves the session history.
+3. Session records are converted into simple data.
+4. The data is passed to a background isolate.
+5. The isolate calculates the statistics.
+6. The results are returned to the main isolate.
+7. The Dashboard and History screens display the results.
+
+This keeps the statistics calculation separate from the main UI isolate.
+
+For small datasets, an isolate can introduce additional overhead. However, it demonstrates background processing and provides a foundation for handling larger amounts of session data.
+
+### 3. Local Notifications
+
+The application supports local notifications for naturally completed focus sessions.
+
+Notifications are controlled by the reminder preference stored in SharedPreferences.
+
+The implementation includes notification permission handling and protection against duplicate notifications.
+
+### 4. File Operations
+
+The JSON backup feature demonstrates:
+
+- File creation
+- JSON encoding and decoding
+- File selection
+- Native file sharing
+- File reading
+- Data validation
+- Transactional database restoration
+
+All backup operations work locally.
+
+### 5. Accessibility and Responsive Design
+
+The application supports:
+
+- Reduced-motion preferences
+- Responsive layouts
 - Centered content on larger screens
 - Bottom navigation on phones
 - Navigation rail on wider screens
-- Reduced-motion support
+- Form validation and error feedback
 
-The focus indicator uses an AnimationController and performs a short animation when activated.
-
-The controller is disposed when the widget is removed.
-
-When reduced motion is enabled, decorative animation is disabled and custom panel transition duration becomes zero.
-
-### Background Statistics Processing
-
-Study statistics are calculated using a background Dart isolate through Isolate.run().
-
-The application:
-
-1. Loads session records from SQLite.
-2. Retrieves them through Riverpod.
-3. Converts session records into simple data.
-4. Sends the data to a background isolate.
-5. Calculates study statistics.
-6. Returns the results to the main isolate.
-7. Displays the results on Dashboard and History.
-
-Both screens use the same statistics provider.
-
-When session history changes, Riverpod recalculates the statistics.
-
-Using an isolate introduces overhead for small datasets, but demonstrates background processing for potentially larger calculations.
+These features help make the application easier to use on different screen sizes.
 
 ## State Management
 
-Riverpod manages dependency injection and asynchronous application state.
+I used Riverpod for dependency injection and asynchronous state management.
 
 Important providers include:
 
-- focusDependenciesProvider
-- focusPresetRepositoryProvider
-- sessionLogRepositoryProvider
-- focusPresetsProvider
-- sessionHistoryProvider
-- sessionScoutProvider
-- studyStatisticsServiceProvider
-- studyStatisticsProvider
-- reduceMotionProvider
-- focusBackupServiceProvider
+- `focusDependenciesProvider`
+- `focusPresetRepositoryProvider`
+- `sessionLogRepositoryProvider`
+- `focusPresetsProvider`
+- `sessionHistoryProvider`
+- `sessionScoutProvider`
+- `studyStatisticsServiceProvider`
+- `studyStatisticsProvider`
+- `reduceMotionProvider`
+- `focusBackupServiceProvider`
 
-After database changes, the affected providers are invalidated so the UI can display updated information.
+When the database changes, the affected providers are invalidated so the interface can display updated data.
 
 After a backup is restored, the preset and session history providers are invalidated.
 
@@ -359,45 +411,64 @@ The application follows clean architecture with three main layers.
 
 ### Presentation Layer
 
-Contains Flutter screens, reusable widgets, and Riverpod providers.
+Contains:
+
+- Flutter screens
+- Reusable widgets
+- Riverpod providers
+- UI state and navigation
 
 ### Domain Layer
 
-Contains entities, repository interfaces, and use cases.
+Contains:
+
+- Entities
+- Repository interfaces
+- Use cases
+- Session Scout logic
+- Study statistics calculations
 
 ### Data Layer
 
-Contains SQLite models, database helpers, repository implementations, background statistics processing, and JSON backup services.
+Contains:
 
-The notification service is implemented under core because it is a platform-related service shared by the application.
+- SQLite database helper
+- Data models
+- Repository implementations
+- Backup services
+- Background statistics service
+
+Platform-related services, including notifications, are implemented under the core directory.
+
+The architecture separates UI code from business logic and data access.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for more information.
 
-## Database
+## Database Design
 
 The application uses SQLite with two related tables.
 
 ### focus_presets
 
-Columns:
-
-- id
-- name
-- mood_tag
-- duration_minutes
+| Column | Description |
+|---|---|
+| id | Unique preset ID |
+| name | Preset name |
+| mood_tag | Selected mood |
+| duration_minutes | Planned duration |
 
 ### session_logs
 
-Columns:
+| Column | Description |
+|---|---|
+| id | Unique session ID |
+| preset_id | Related focus preset |
+| date | Session date |
+| completed_seconds | Completed duration |
+| status | Session status |
+| notes | Optional session notes |
 
-- id
-- preset_id
-- date
-- completed_seconds
-- status
-- notes
-
-The session_logs table references focus_presets through a foreign key.
+The `session_logs` table references `focus_presets` through a foreign key.
 
 Deleting a preset also deletes its associated session logs through cascade deletion.
 
@@ -412,7 +483,11 @@ No database migration is required for the JSON backup feature.
 - Android Studio or VS Code
 - Android emulator or supported physical device
 
+The project was developed using Flutter 3.47.2 and Dart 3.13.2.
+
 ### Install Dependencies
+
+From the project directory, run:
 
 ```bash
 flutter pub get
@@ -424,13 +499,19 @@ flutter pub get
 flutter run
 ```
 
-### Android Notification Setup
+### Build an Android APK
 
-The Android manifest includes POST_NOTIFICATIONS permission.
+```bash
+flutter build apk --release
+```
 
-The Android app uses Java 17 and core library desugaring.
+The release APK is generated at:
 
-For testing notifications:
+```text
+build/app/outputs/flutter-apk/app-release.apk
+```
+
+## Testing Notifications
 
 1. Run the application on an Android emulator or physical device.
 2. Open Settings.
@@ -442,22 +523,22 @@ For testing notifications:
 8. Let the timer finish naturally.
 9. Check that the session is saved and a notification appears.
 
-### Testing JSON Backup and Restore
+## Testing Backup and Restore
 
-1. Create two or more focus presets.
+1. Create at least two focus presets.
 2. Complete a study session.
 3. Open Settings.
 4. Select Export JSON Backup.
 5. Save the exported JSON file.
-6. Create an additional preset.
+6. Create another preset.
 7. Select Import JSON Backup.
 8. Confirm the replacement warning.
 9. Select the previously exported file.
 10. Check that the original presets and sessions are restored.
 11. Check that the additional preset has been removed.
-12. Import the same backup again and verify that no duplicate records appear.
+12. Import the same backup again and check that no duplicate records appear.
 
-Also test:
+Additional cases to test:
 
 - Cancelling file selection
 - Importing invalid JSON
@@ -467,12 +548,26 @@ Also test:
 
 An empty backup intentionally removes all presets and sessions after confirmation.
 
-## Testing
+## Automated Testing
+
+I used unit tests, widget tests, database tests, and integration tests to verify the application.
+
+### Test Results
+
+The final recorded automated test results are:
+
+| Test Category | Result |
+|---|---|
+| Unit and widget tests | 187 passed |
+| Integration tests | 7 passed |
+| Static analysis | No issues reported |
+
+These results were obtained during final project verification.
 
 ### Format Code
 
 ```bash
-dart format lib test
+dart format lib test integration_test
 ```
 
 ### Static Analysis
@@ -481,69 +576,111 @@ dart format lib test
 flutter analyze
 ```
 
-### Run All Tests
+### Run Unit and Widget Tests
 
 ```bash
-flutter test
+flutter test test/
 ```
 
-### Widget Tests
+### Run Integration Tests
+
+Start an Android emulator or connect a supported device, then run:
+
+```bash
+flutter test integration_test/focus_workflow_test.dart
+```
+
+### Run Individual Tests
+
+Widget tests:
 
 ```bash
 flutter test test/widget_test.dart
 ```
 
-### Riverpod Tests
+Focus preset form tests:
 
 ```bash
-flutter test test/features/focus/presentation/focus_providers_test.dart
+flutter test test/features/focus/presentation/screens/preset_form_screen_test.dart
 ```
 
-### Animation Tests
+Focus timer tests:
+
+```bash
+flutter test test/features/focus/presentation/screens/focus_timer_screen_test.dart
+```
+
+Animation tests:
 
 ```bash
 flutter test test/core/animation/animated_focus_indicator_test.dart
 ```
 
-### Responsive Layout Tests
+Responsive layout tests:
 
 ```bash
 flutter test test/core/widgets/responsive_content_test.dart
 ```
 
-### Statistics Calculation Tests
-
-```bash
-flutter test test/features/focus/domain/calculate_study_statistics_test.dart
-```
-
-### Background Isolate Tests
-
-```bash
-flutter test test/features/focus/data/study_statistics_service_test.dart
-```
-
-### Notification Controller Tests
+Notification controller tests:
 
 ```bash
 flutter test test/core/notifications/focus_notification_controller_test.dart
 ```
 
-### JSON Codec Tests
+Session Scout calculation tests:
+
+```bash
+flutter test test/features/focus/domain/calculate_session_scout_test.dart
+```
+
+Session Scout evaluation tests:
+
+```bash
+flutter test test/features/focus/domain/evaluate_session_scout_test.dart
+```
+
+JSON codec tests:
 
 ```bash
 flutter test test/features/focus/data/services/focus_backup_codec_test.dart
 ```
 
-### JSON Backup Service Tests
+JSON backup service tests:
 
 ```bash
 flutter test test/features/focus/data/services/focus_backup_service_test.dart
 ```
 
-The backup tests use an in-memory SQLite database and do not modify the application's saved data.
+The database and backup tests use in-memory SQLite databases to avoid modifying the application's saved data.
+
+### Test Coverage
+
+The automated tests cover areas including:
+
+- Database creation and relationships
+- Focus preset CRUD operations
+- Session log operations
+- Domain validation
+- Session Scout calculations
+- Session Scout evaluation
+- Riverpod providers
+- Form validation
+- Focus timer controls
+- Custom animations
+- Responsive layouts
+- Study statistics
+- Notification controller behavior
+- JSON backup validation
+- JSON export and import
+- Database transaction behavior
+- Complete application workflows
+
+The integration tests exercise application workflows on an Android emulator.
 
 ## Development Progress
+
+I developed the project incrementally using 20 meaningful Git commits.
 
 ### Commits 1-8
 
@@ -626,13 +763,49 @@ The backup tests use an in-memory SQLite database and do not modify the applicat
 - Settings screen integration
 - JSON and database tests
 
-## Planned Features
+### Commit 18
 
-- Additional unit and widget tests
 - Integration testing
-- Test coverage
-- Final documentation and project polish
+- Complete focus workflow verification
+- Additional automated test coverage
 
-## GitHub
+### Commit 19
+
+- Widget test stabilization
+- Focus timer UI tests
+- Preset form validation tests
+- Test hang fixes
+- Full unit and widget test verification
+
+### Commit 20
+
+- Final static analysis cleanup
+- Database helper constructor cleanup
+- Backup service cleanup
+- Final README documentation
+- Final automated testing and project verification
+
+## Limitations
+
+The current application has a few limitations:
+
+- Session Scout uses a rule-based algorithm rather than a trained machine learning model.
+- The Session Scout evaluation uses synthetic data rather than real user data.
+- Notifications are immediate and depend on the timer reaching completion while the application remains active.
+- The sound preference is stored, but separate sound functionality is not implemented.
+- JSON backups contain focus presets and session history, but not SharedPreferences settings.
+- All application data is stored locally without cloud synchronization.
+
+These limitations are documented so the current functionality is clear.
+
+## Conclusion
+
+Adaptive Focus Studio brings together focus session management, local data storage, study statistics, and personalized duration recommendations in one Flutter application.
+
+Through this project, I worked with clean architecture, Riverpod, SQLite, asynchronous programming, Dart isolates, animations, notifications, file operations, and automated testing.
+
+The project also gave me experience organizing a larger Flutter application into separate layers and testing its functionality before final submission.
+
+## GitHub Repository
 
 https://github.com/isaacowusu3461/Adaptive_Focus_Studio

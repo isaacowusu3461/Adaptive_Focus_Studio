@@ -1,4 +1,3 @@
-
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -14,22 +13,20 @@ class DatabaseHelper {
 
   Database? _database;
 
-  DatabaseHelper({
-    DatabaseFactory? factory,
-    String? databasePath,
-  })  : _databaseFactory = factory ?? databaseFactory,
-        _databasePath = databasePath;
+  DatabaseHelper({DatabaseFactory? factory, String? databasePath})
+    : this._internal(factory: factory, databasePath: databasePath);
+
+  DatabaseHelper._internal({DatabaseFactory? factory, this._databasePath})
+    : _databaseFactory = factory ?? databaseFactory;
 
   Future<Database> get database async {
     if (_database != null && _database!.isOpen) {
       return _database!;
     }
 
-    final path = _databasePath ??
-        join(
-          await _databaseFactory.getDatabasesPath(),
-          databaseName,
-        );
+    final path =
+        _databasePath ??
+        join(await _databaseFactory.getDatabasesPath(), databaseName);
 
     _database = await _databaseFactory.openDatabase(
       path,

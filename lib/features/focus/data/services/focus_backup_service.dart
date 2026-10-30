@@ -1,8 +1,6 @@
-
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -26,10 +24,8 @@ class FocusBackupService {
   final DatabaseHelper databaseHelper;
   final FocusBackupCodec codec;
 
-  FocusBackupService({
-    required this.databaseHelper,
-    FocusBackupCodec? codec,
-  }) : codec = codec ?? FocusBackupCodec();
+  FocusBackupService({required this.databaseHelper, FocusBackupCodec? codec})
+    : codec = codec ?? FocusBackupCodec();
 
   Future<String> exportJson() async {
     final db = await databaseHelper.database;
@@ -65,30 +61,16 @@ class FocusBackupService {
         .replaceAll('.', '-');
 
     final file = File(
-      path.join(
-        directory.path,
-        'adaptive_focus_backup_$timestamp.json',
-      ),
+      path.join(directory.path, 'adaptive_focus_backup_$timestamp.json'),
     );
 
-    await file.writeAsString(
-      json,
-      encoding: utf8,
-      flush: true,
-    );
+    await file.writeAsString(json, encoding: utf8, flush: true);
 
     await SharePlus.instance.share(
       ShareParams(
         text: 'Adaptive Focus Studio backup',
-        files: [
-          XFile(
-            file.path,
-            mimeType: 'application/json',
-          ),
-        ],
-        fileNameOverrides: [
-          path.basename(file.path),
-        ],
+        files: [XFile(file.path, mimeType: 'application/json')],
+        fileNameOverrides: [path.basename(file.path)],
       ),
     );
   }
@@ -99,23 +81,18 @@ class FocusBackupService {
       allowedExtensions: ['json'],
     );
 
-    if (result == null || result.isEmpty) {
+    if (result.isEmpty) {
       return null;
     }
 
     final selected = result.single;
+    final selectedPath = selected.path;
 
-    if (selected.path == null) {
-      throw const FormatException(
-        'Unable to access the selected backup file.',
-      );
+    if (selectedPath == null) {
+      throw const FormatException('Unable to access the selected backup file.');
     }
 
-    final json = await File(
-      selected.path!,
-    ).readAsString(
-      encoding: utf8,
-    );
+    final json = await File(selectedPath).readAsString(encoding: utf8);
 
     return importJson(json);
   }
