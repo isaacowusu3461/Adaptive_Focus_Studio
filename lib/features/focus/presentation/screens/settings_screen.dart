@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/notifications/focus_notification_service.dart';
 import '../providers/focus_backup_provider.dart';
 import '../providers/focus_providers.dart';
@@ -34,6 +35,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _loadSettings();
   }
 
+  // I load the saved preferences when this screen opens so
+  // users see their previous choices instead of the defaults.
   Future<void> _loadSettings() async {
     try {
       final preferences = await SharedPreferences.getInstance();
@@ -66,6 +69,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  // I save the preferences locally so they are still available
+  // when the app is closed and opened again.
   Future<void> _saveSettings() async {
     if (_saving || _backupBusy) return;
 
@@ -74,6 +79,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       bool remindersToSave = _remindersEnabled;
 
+      // I check notification permission before enabling reminders.
+      // If permission is denied, I leave the setting disabled.
       if (remindersToSave) {
         final permissionGranted =
             await _notificationService.requestPermission();
@@ -139,6 +146,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  // I let users export their presets and session history so
+  // they can keep a copy of their study data outside the app.
   Future<void> _exportBackup() async {
     if (_backupBusy || _saving) return;
 
@@ -171,6 +180,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  // Restoring a backup replaces the current presets and history,
+  // so I show a warning and ask the user to confirm first.
   Future<void> _importBackup() async {
     if (_backupBusy || _saving) return;
 
@@ -214,6 +225,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return;
       }
 
+      // I refresh the providers after importing so the restored
+      // presets and sessions appear without restarting the app.
       ref.invalidate(focusPresetsProvider);
       ref.invalidate(sessionHistoryProvider);
 
@@ -250,6 +263,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Widget _sectionTitle(
+    String title,
+    IconData icon,
+  ) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: AppTheme.primaryColor,
+          size: 26,
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textColor,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -269,112 +306,189 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ResponsiveSettingsBody(
         child: ListView(
           children: [
-            const Text(
-              'Focus Preferences',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(16),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Default Focus Duration: '
-              '${_defaultDuration.round()} minutes',
-            ),
-            Slider(
-              value: _defaultDuration,
-              min: 10,
-              max: 60,
-              divisions: 50,
-              label: '${_defaultDuration.round()} min',
-              onChanged: busy
-                  ? null
-                  : (value) {
-                      setState(() => _defaultDuration = value);
-                    },
-            ),
-            const Divider(),
-            SwitchListTile(
-              title: const Text('Reminders'),
-              subtitle: const Text(
-                'Notify me when a focus session finishes.',
+              child: const Column(
+                children: [
+                  Icon(
+                    Icons.tune_rounded,
+                    size: 46,
+                    color: AppTheme.primaryColor,
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'Make Focus Studio Your Own',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textColor,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Adjust your study preferences and manage your data.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              value: _remindersEnabled,
-              onChanged: busy
-                  ? null
-                  : (value) {
-                      setState(() => _remindersEnabled = value);
-                    },
-            ),
-            SwitchListTile(
-              title: const Text('Reduce Motion'),
-              subtitle: const Text(
-                'Disable decorative animations.',
-              ),
-              value: _reduceMotion,
-              onChanged: busy
-                  ? null
-                  : (value) {
-                      setState(() => _reduceMotion = value);
-                    },
-            ),
-            SwitchListTile(
-              title: const Text('Sound'),
-              subtitle: const Text(
-                'Save your sound preference.',
-              ),
-              value: _soundEnabled,
-              onChanged: busy
-                  ? null
-                  : (value) {
-                      setState(() => _soundEnabled = value);
-                    },
             ),
             const SizedBox(height: 24),
-            FilledButton(
-              onPressed: busy ? null : _saveSettings,
-              child: Text(
-                _saving ? 'Saving...' : 'Save Settings',
+            _sectionTitle(
+              'Focus Preferences',
+              Icons.timer_outlined,
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Text(
+                      'Default Focus Duration: '
+                      '${_defaultDuration.round()} minutes',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Slider(
+                      activeColor: AppTheme.primaryColor,
+                      value: _defaultDuration,
+                      min: 10,
+                      max: 60,
+                      divisions: 50,
+                      label: '${_defaultDuration.round()} min',
+                      onChanged: busy
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _defaultDuration = value;
+                              });
+                            },
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      activeThumbColor: AppTheme.secondaryColor,
+                      title: const Text('Reminders'),
+                      subtitle: const Text(
+                        'Notify me when a focus session finishes.',
+                      ),
+                      value: _remindersEnabled,
+                      onChanged: busy
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _remindersEnabled = value;
+                              });
+                            },
+                    ),
+                    SwitchListTile(
+                      activeThumbColor: AppTheme.secondaryColor,
+                      title: const Text('Reduce Motion'),
+                      subtitle: const Text(
+                        'Disable decorative animations.',
+                      ),
+                      value: _reduceMotion,
+                      onChanged: busy
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _reduceMotion = value;
+                              });
+                            },
+                    ),
+                    SwitchListTile(
+                      activeThumbColor: AppTheme.secondaryColor,
+                      title: const Text('Sound'),
+                      subtitle: const Text(
+                        'Save your sound preference.',
+                      ),
+                      value: _soundEnabled,
+                      onChanged: busy
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _soundEnabled = value;
+                              });
+                            },
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 32),
-            const Divider(),
             const SizedBox(height: 16),
-            const Text(
-              'Data Backup',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: busy ? null : _saveSettings,
+                icon: const Icon(Icons.save_outlined),
+                label: Text(
+                  _saving ? 'Saving...' : 'Save Settings',
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Export your focus presets and study history '
-              'to a JSON file, or restore a previous backup.',
+            const SizedBox(height: 28),
+            _sectionTitle(
+              'Data Backup',
+              Icons.folder_copy_outlined,
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Restoring a backup replaces your current '
-              'presets and session history. Settings are not included.',
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Export your focus presets and study history '
+                      'to a JSON file, or restore a previous backup.',
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Restoring a backup replaces your current '
+                      'presets and session history. Settings are not included.',
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: busy ? null : _exportBackup,
+                        icon: const Icon(Icons.file_upload_outlined),
+                        label: const Text('Export JSON Backup'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.secondaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: busy ? null : _importBackup,
+                        icon: const Icon(Icons.file_download_outlined),
+                        label: const Text('Import JSON Backup'),
+                      ),
+                    ),
+                    if (_backupBusy) ...[
+                      const SizedBox(height: 16),
+                      const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: busy ? null : _exportBackup,
-              icon: const Icon(Icons.file_upload_outlined),
-              label: const Text('Export JSON Backup'),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: busy ? null : _importBackup,
-              icon: const Icon(Icons.file_download_outlined),
-              label: const Text('Import JSON Backup'),
-            ),
-            if (_backupBusy) ...[
-              const SizedBox(height: 16),
-              const Center(
-                child: CircularProgressIndicator(),
-              ),
-            ],
           ],
         ),
       ),

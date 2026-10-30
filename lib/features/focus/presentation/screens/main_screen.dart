@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_theme.dart';
 import '../providers/focus_dependencies.dart';
 import '../providers/focus_providers.dart';
 import 'dashboard_screen.dart';
@@ -76,9 +77,19 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         body: Row(
           children: [
             NavigationRail(
+              backgroundColor: Colors.white,
               selectedIndex: _selectedIndex,
               onDestinationSelected: _selectTab,
               labelType: NavigationRailLabelType.all,
+              selectedIconTheme: const IconThemeData(
+                color: AppTheme.primaryColor,
+                size: 27,
+              ),
+              selectedLabelTextStyle: const TextStyle(
+                color: AppTheme.primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
+              indicatorColor: const Color(0xFFDBEAFE),
               destinations: const [
                 NavigationRailDestination(
                   icon: Icon(Icons.dashboard_outlined),
@@ -107,22 +118,33 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     return Scaffold(
       body: content,
       bottomNavigationBar: NavigationBar(
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0xFFDBEAFE),
         selectedIndex: _selectedIndex,
         onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
+            selectedIcon: Icon(
+              Icons.dashboard,
+              color: AppTheme.primaryColor,
+            ),
             label: 'Dashboard',
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
+            selectedIcon: Icon(
+              Icons.history,
+              color: AppTheme.primaryColor,
+            ),
             label: 'History',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
+            selectedIcon: Icon(
+              Icons.settings,
+              color: AppTheme.primaryColor,
+            ),
             label: 'Settings',
           ),
         ],
