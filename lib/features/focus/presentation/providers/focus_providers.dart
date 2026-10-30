@@ -1,4 +1,3 @@
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/focus_preset.dart';
@@ -14,18 +13,14 @@ import '../../domain/usecases/update_focus_preset.dart';
 import 'focus_dependencies.dart';
 
 final focusDependenciesProvider = Provider<FocusDependencies>((ref) {
-  throw StateError(
-    'FocusDependencies must be provided at app startup.',
-  );
+  throw StateError('FocusDependencies must be provided at app startup.');
 });
 
-final focusPresetRepositoryProvider =
-    Provider<FocusPresetRepository>((ref) {
+final focusPresetRepositoryProvider = Provider<FocusPresetRepository>((ref) {
   return ref.watch(focusDependenciesProvider).presetRepository;
 });
 
-final sessionLogRepositoryProvider =
-    Provider<SessionLogRepository>((ref) {
+final sessionLogRepositoryProvider = Provider<SessionLogRepository>((ref) {
   return ref.watch(focusDependenciesProvider).sessionRepository;
 });
 
@@ -47,32 +42,32 @@ final saveSessionLogProvider = Provider<SaveSessionLog>((ref) {
 
 final getSessionScoutRecommendationProvider =
     Provider<GetSessionScoutRecommendation>((ref) {
-  return ref
-      .watch(focusDependenciesProvider)
-      .getSessionScoutRecommendation;
-});
+      return ref.watch(focusDependenciesProvider).getSessionScoutRecommendation;
+    });
 
-final focusPresetsProvider =
-    FutureProvider<List<FocusPreset>>((ref) async {
+final focusPresetsProvider = FutureProvider<List<FocusPreset>>((ref) async {
   final repository = ref.watch(focusPresetRepositoryProvider);
   return repository.getAllPresets();
 });
 
-final sessionHistoryProvider =
-    FutureProvider<List<SessionLog>>((ref) async {
+final sessionHistoryProvider = FutureProvider<List<SessionLog>>((ref) async {
   final repository = ref.watch(sessionLogRepositoryProvider);
   return repository.getAllSessions();
 });
 
 final sessionScoutProvider =
-    FutureProvider.family<SessionScoutRecommendation, String>(
-  (ref, moodTag) async {
-    ref.watch(focusPresetsProvider);
-    ref.watch(sessionHistoryProvider);
+    FutureProvider.family<SessionScoutRecommendation, String>((
+      ref,
+      moodTag,
+    ) async {
+      await Future.wait([
+        ref.watch(focusPresetsProvider.future),
+        ref.watch(sessionHistoryProvider.future),
+      ]);
 
-    final getRecommendation =
-        ref.watch(getSessionScoutRecommendationProvider);
+      final getRecommendation = ref.watch(
+        getSessionScoutRecommendationProvider,
+      );
 
-    return getRecommendation(moodTag: moodTag);
-  },
-);
+      return getRecommendation(moodTag: moodTag);
+    });

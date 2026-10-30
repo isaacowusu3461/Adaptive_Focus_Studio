@@ -1,4 +1,3 @@
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -21,14 +20,10 @@ void main() {
       databasePath: inMemoryDatabasePath,
     );
 
-    dependencies = FocusDependencies(
-      databaseHelper: helper,
-    );
+    dependencies = FocusDependencies(databaseHelper: helper);
 
     container = ProviderContainer(
-      overrides: [
-        focusDependenciesProvider.overrideWithValue(dependencies),
-      ],
+      overrides: [focusDependenciesProvider.overrideWithValue(dependencies)],
     );
   });
 
@@ -46,9 +41,7 @@ void main() {
       ),
     );
 
-    final initial = await container.read(
-      focusPresetsProvider.future,
-    );
+    final initial = await container.read(focusPresetsProvider.future);
 
     expect(initial.length, 1);
 
@@ -56,9 +49,7 @@ void main() {
 
     container.invalidate(focusPresetsProvider);
 
-    final updated = await container.read(
-      focusPresetsProvider.future,
-    );
+    final updated = await container.read(focusPresetsProvider.future);
 
     expect(updated, isEmpty);
   });
@@ -79,9 +70,7 @@ void main() {
       status: 'completed',
     );
 
-    final initial = await container.read(
-      sessionHistoryProvider.future,
-    );
+    final initial = await container.read(sessionHistoryProvider.future);
 
     expect(initial.length, 1);
 
@@ -89,9 +78,7 @@ void main() {
 
     container.invalidate(sessionHistoryProvider);
 
-    final updated = await container.read(
-      sessionHistoryProvider.future,
-    );
+    final updated = await container.read(sessionHistoryProvider.future);
 
     expect(updated, isEmpty);
   });
@@ -105,27 +92,33 @@ void main() {
       ),
     );
 
-    final sessionId = await dependencies.saveSessionLog(
-      presetId: id,
-      date: DateTime(2026, 10, 28),
-      completedSeconds: 1800,
-      status: 'completed',
-    );
+    final sessionIds = <int>[];
 
-    final before = await container.read(
-      sessionScoutProvider('Focused').future,
-    );
+    for (var i = 0; i < 3; i++) {
+      final sessionId = await dependencies.saveSessionLog(
+        presetId: id,
+        date: DateTime(2026, 10, 20 + i),
+        completedSeconds: (20 + i * 5) * 60,
+        status: 'completed',
+      );
+
+      sessionIds.add(sessionId);
+    }
+
+    final before = await container.read(sessionScoutProvider('Focused').future);
 
     expect(before.usedFallback, false);
+    expect(before.sessionsUsed, 3);
+    expect(before.suggestedMinutes, 25);
 
-    await dependencies.sessionRepository.deleteSession(sessionId);
+    for (final sessionId in sessionIds) {
+      await dependencies.sessionRepository.deleteSession(sessionId);
+    }
 
     container.invalidate(sessionHistoryProvider);
     container.invalidate(sessionScoutProvider('Focused'));
 
-    final after = await container.read(
-      sessionScoutProvider('Focused').future,
-    );
+    final after = await container.read(sessionScoutProvider('Focused').future);
 
     expect(after.usedFallback, true);
     expect(after.suggestedMinutes, 25);
@@ -152,13 +145,9 @@ void main() {
     container.invalidate(focusPresetsProvider);
     container.invalidate(sessionHistoryProvider);
 
-    final presets = await container.read(
-      focusPresetsProvider.future,
-    );
+    final presets = await container.read(focusPresetsProvider.future);
 
-    final sessions = await container.read(
-      sessionHistoryProvider.future,
-    );
+    final sessions = await container.read(sessionHistoryProvider.future);
 
     expect(presets, isEmpty);
     expect(sessions, isEmpty);
