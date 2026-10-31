@@ -264,8 +264,8 @@ It uses completed sessions that match the selected mood.
 ### How It Works
 
 1. The user selects a mood.
-2. Session Scout retrieves completed sessions matching that mood.
-3. It selects the three most recent matching sessions.
+2. The application supplies completed sessions matching that mood.
+3. Session Scout selects the three most recent matching sessions.
 4. It calculates the median completed duration.
 5. It rounds the result to the nearest minute.
 6. It limits the recommendation to between 10 and 60 minutes.
@@ -289,7 +289,7 @@ This gives a more stable recommendation than using the average.
 
 ### Session Scout Evaluation
 
-I evaluated Session Scout against a fixed 25-minute baseline using six synthetic test cases.
+The project includes a Session Scout evaluation against a fixed 25-minute baseline using six synthetic test cases.
 
 The evaluation uses:
 
@@ -297,18 +297,18 @@ The evaluation uses:
 - Mean absolute error (MAE)
 - Relative MAE reduction
 
-Results:
+Previously recorded evaluation results:
 
 | Metric | Session Scout | Fixed Baseline |
 |---|---:|---:|
 | Mean Absolute Error | 2.33 minutes | 13.00 minutes |
 | Relative MAE Reduction | 82.05% | - |
 
-These results demonstrate how the evaluation works on the selected synthetic cases.
+These values are from the existing project documentation and should be checked against the evaluation test output before final submission.
 
-They do not establish how well the algorithm will perform with real users.
+The results illustrate the evaluation approach using synthetic data. They do not establish how well the algorithm will perform with real users.
 
-See [AI_FEATURE.md](AI_FEATURE.md) for the complete evaluation and limitations.
+See [AI_FEATURE.md](AI_FEATURE.md) for the recommendation algorithm and its limitations.
 
 ## Graduate-Level Extensions
 
@@ -554,15 +554,15 @@ I used unit tests, widget tests, database tests, and integration tests to verify
 
 ### Test Results
 
-The final recorded automated test results are:
+Earlier project documentation recorded the following results:
 
-| Test Category | Result |
+| Test Category | Previously Recorded Result |
 |---|---|
 | Unit and widget tests | 187 passed |
 | Integration tests | 7 passed |
 | Static analysis | No issues reported |
 
-These results were obtained during final project verification.
+These are historical results. The final counts and pass status need to be confirmed from the latest test runs before submission.
 
 ### Format Code
 
@@ -678,6 +678,35 @@ The automated tests cover areas including:
 
 The integration tests exercise application workflows on an Android emulator.
 
+See [Testing Documentation](docs/testing.md) for the testing approach, test cases, and evidence.
+
+## Project Management
+
+I used ClickUp to organize and track the development of Adaptive Focus Studio.
+
+Since this was an individual project, I managed the planning, implementation, testing, and documentation myself.
+
+I used a Kanban-style board to keep track of tasks and move them through different stages of development.
+
+The main task statuses were:
+
+- **Backlog:** Tasks planned for future development.
+- **To Do:** Tasks ready to be worked on.
+- **In Progress:** Tasks I was currently implementing or testing.
+- **Done:** Tasks that had been completed.
+
+I divided the project into smaller tasks covering the main application features, database implementation, Session Scout, testing, and documentation.
+
+This helped me track my progress and identify which features still needed attention.
+
+### ClickUp Project Board
+
+[View Adaptive Focus Studio ClickUp Board](https://sharing.clickup.com/90141777100/b/h/2kydwq6c-474/65ac003664e3c60)
+
+The board contains the development tasks and their progress statuses.
+
+For more details about the development process, see the [Development Journal](docs/development-journal.md).
+
 ## Development Progress
 
 I developed the project incrementally using 20 meaningful Git commits.
@@ -785,6 +814,27 @@ I developed the project incrementally using 20 meaningful Git commits.
 - Final README documentation
 - Final automated testing and project verification
 
+## Project Documentation
+
+Additional documentation is available in the following files:
+
+| Document | Description |
+|---|---|
+| [Architecture](ARCHITECTURE.md) | Explains the project architecture, layers, repositories, and state management |
+| [Session Scout Documentation](AI_FEATURE.md) | Explains the recommendation algorithm, fallback rules, and limitations |
+| [Development Journal](docs/development-journal.md) | Documents the development process, milestones, and project management |
+| [Testing Documentation](docs/testing.md) | Explains the testing strategy, test cases, and verification results |
+
+## Screenshots and Evidence
+
+Screenshots and other project evidence are organized in the `docs/evidence/` directory.
+
+The evidence is intended to support the development journal and testing documentation.
+
+The screenshots include examples of application features and development or testing activities, where captured.
+
+See the [Development Journal](docs/development-journal.md) and [Testing Documentation](docs/testing.md) for the relevant evidence references.
+
 ## Limitations
 
 The current application has a few limitations:
@@ -808,4 +858,4 @@ The project also gave me experience organizing a larger Flutter application into
 
 ## GitHub Repository
 
-https://github.com/isaacowusu3461/Adaptive_Focus_Studio
+[Adaptive Focus Studio GitHub Repository](https://github.com/isaacowusu3461/Adaptive_Focus_Studio)
